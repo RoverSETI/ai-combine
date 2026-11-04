@@ -1,0 +1,51 @@
+# Как откатиться на старую сборку llama (CUDA 12), если CUDA 13 вдруг глючит
+
+Ситуация: роутер моделей (:8081) работает на новой сборке `/home/rover/llama-cuda13`
+(llama.cpp b12057, CUDA 13.4, GPU). Старая сборка сохранена нетронутой в
+`/home/rover/llama` (и ещё в `/home/rover/llama.bak-20261102`).
+
+## Быстрый откат (2 команды + рестарт)
+
+```bash
+# 1) остановить роутер и его потомков:
+kill $(pgrep -f 'llama-server --models-preset') 2>/dev/null
+sleep 3
+
+# 2) сказать start_ai.sh использовать старую сборку:
+#    закомментировать блок «Выбор сборки llama-server (CUDA 13 …)» целиком
+#    в ~/AiStart/start_ai.sh (строки между '0. Выбор сборки' и 'fi' перед
+#    «1. останов старых копий») — проще всего временно переименовать каталог:
+mv /home/rover/llama-cuda13 /home/rover/llama-cuda13.OFF
+
+# 3) запустить комбайн как обычно:
+/home/rover/AiStart/start_ai.sh
+```
+
+Всё: `start_ai.sh` не найдёт `llama-cuda13` и уйдёт на фолбэк — старую сборку
+`~/llama` с CUDA 12-библиотеками из `.venv-cuda12`.
+
+## Вернуться обратно на CUDA 13
+
+```bash
+mv /home/rover/llama-cuda13.OFF /home/rover/llama-cuda13
+/home/rover/AiStart/start_ai.sh
+```
+
+## Исходники и пересборка
+
+- Исходники: `/home/rover/build-llama/llama.cpp` (тег **b12057**, официальный релиз)
+- Конфиг CUDA: `build-cuda13` (уже собран), флаги: `-DGGML_CUDA=ON
+  -DCMAKE_CUDA_ARCHITECTURES=86 -DGGML_NATIVE=OFF`
+- Пересборка: `cd /home/rover/build-llama/llama.cpp && cmake --build build-cuda13 -j 6`
+- Deploy: скопировать `build-cuda13/bin/*` в `~/llama-cuda13/`
+- Vulkan-профиль: `build-vulkan` (тоже собран) — `GGML_VULKAN=ON`, включается
+  той же логикой, если когда-нибудь понадобится (сейчас активен CUDA 13 — он
+  быстрее: 35.8 t/s против ~27 у старой сборки, prompt-eval быстрее в ~4 раза).
+
+## Сравнение замеров (0.5b и 9B, одинаковые промпты)
+
+| Сборка | 0.5b gen | 9B gen | 9B prompt eval |
+|---|---|---|---|
+| CUDA 12 (старая, ~/llama) | 63.9 t/s | 27.5 t/s | ~14 t/s (12.5 t/s на длинных) |
+| **CUDA 13 (новая, ~/llama-cuda13)** | 308.9 t/s | **35.8 t/s** | **255 t/s** |
+| Vulkan 0.25.3 (b12057) | 91.8 t/s | не тестировали | не тестировали |

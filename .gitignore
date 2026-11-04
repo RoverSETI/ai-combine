@@ -6,6 +6,13 @@
 # ============================================================
 
 /*
+# --- CI (GitHub Actions) ---
+!/.github/
+/.github/*
+!/.github/workflows/
+/.github/workflows/*
+!/.github/workflows/*.yml
+
 # --- корень репозитория ---
 !/.gitignore
 !/README.md
@@ -17,9 +24,14 @@
 /GoogleDrive/*
 !/GoogleDrive/Obsidian/
 /GoogleDrive/Obsidian/*
-!/GoogleDrive/Obsidian/ИИ/
-/GoogleDrive/Obsidian/ИИ/*
-!/GoogleDrive/Obsidian/ИИ/ИИ-комбайн — полная инструкция (схемы и технология).md
+!/GoogleDrive/Obsidian/*.md
+!/GoogleDrive/Obsidian/*/
+!/GoogleDrive/Obsidian/**/
+/GoogleDrive/Obsidian/**/*.*
+!/GoogleDrive/Obsidian/**/*.md
+/GoogleDrive/Obsidian/.obsidian/
+/GoogleDrive/Obsidian/.trash/
+/GoogleDrive/Obsidian/.smart-env/
 
 # --- AiStart: код, конфиги, документы (явно, поимённо) ---
 /AiStart/*

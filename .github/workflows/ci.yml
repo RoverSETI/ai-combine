@@ -1,0 +1,59 @@
+name: CI
+
+# Проверки репозитория ai-combine при каждом пуше в main
+# (и вручную из вкладки Actions). Система локальная — раннер не
+# запускает комбайн, только проверяет код и документацию.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Забрать репозиторий
+        uses: actions/checkout@v4
+
+      - name: Настроить Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Python — компиляция всех скриптов (синтаксис)
+        run: |
+          set -e
+          find AiStart OpenWebUI-Local/scripts -name '*.py' -print0 \
+            | xargs -0 -n1 python3 -m py_compile
+          echo "Все $(find AiStart OpenWebUI-Local/scripts -name '*.py' | wc -l) python-файлов компилируются"
+
+      - name: Bash — синтаксис скриптов
+        run: |
+          set -e
+          for f in AiStart/*.sh; do bash -n "$f" && echo "OK: $f"; done
+
+      - name: Shellcheck — только ошибки (-S error)
+        run: |
+          shellcheck -S error AiStart/*.sh && echo "shellcheck: ошибок нет"
+
+      - name: Секреты — в репозитории их быть не должно
+        run: |
+          set -e
+          # формы ключей: OpenAI/Polza, GitHub PAT, AWS, приватные ключи,
+          # маркер локального секрета WebUI
+          if grep -rInE 'sk-[A-Za-z0-9]{16,}|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY|OdEcTt' \
+             --include='*.py' --include='*.sh' --include='*.json' --include='*.md' . ; then
+            echo "ОШИБКА: найдены строки, похожие на секреты"; exit 1
+          fi
+          echo "Секретов нет"
+
+      - name: Документация — схемы встроены (base64), якоря на месте
+        run: |
+          set -e
+          n1=$(grep -c 'data:image/png;base64,' OpenWebUI-Local/ИНСТРУКЦИЯ-ГРАФИКА.html)
+          n2=$(grep -c 'data:image/png;base64,' "GoogleDrive/Obsidian/ИИ/ИИ-комбайн — полная инструкция (схемы и технология).md")
+          echo "base64-картинок: html=$n1 md=$n2"
+          [ "$n1" -ge 7 ] && [ "$n2" -ge 7 ]
+          grep -q 'GIT-УЧЕБНИК' AiStart/README.md
+          echo "Документация в порядке"

@@ -1,0 +1,15 @@
+{
+  "name": "obsidian",
+  "type": "mcp",
+  "config": {
+    "command": "npx",
+    "args": [
+      "-y",
+      "mcp-server-obsidian",
+      "--vault-path",
+      "/run/media/rover/BACK/GoogleDrive/Obsidian/",
+      "--api-key",
+      "aa2ce37aadb1ce6324707e1d16ee7604b59d3daf59ffd37ba26161b77d5e7a77"
+    ]
+  }
+}

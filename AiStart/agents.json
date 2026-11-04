@@ -1,0 +1,58 @@
+{
+  "_comment": "Конфиг локальных ИИ-агентов (llama.cpp роутер :8081, models.ini). Роль = модель + параметры. Маршрутизация по сложности: simple → medium → hard.",
+  "router_base": "http://127.0.0.1:8081/v1",
+  "timeout_chat": 600,
+  "roles": {
+    "fast": {
+      "model": "qwen2.5-coder-0.5b",
+      "title": "Быстрый (0.5b)",
+      "purpose": "Мелкие одноразовые вопросы, прогрев VRAM, автодополнение. Не умеет инструменты.",
+      "max_tokens": 400,
+      "temperature": 0.4,
+      "tools": false
+    },
+    "medium": {
+      "model": "qwen2.5-coder-7b",
+      "title": "Средний (qwen2.5-7b)",
+      "purpose": "Рутинные задачи: тексты, переводы, пояснения, простые bash-вопросы. Связный текст; tools нет (квант), сложное — на hard.",
+      "max_tokens": 1200,
+      "temperature": 0.4,
+      "tools": false
+    },
+    "hard": {
+      "model": "qwen3.5-9b-instruct",
+      "title": "Эксперт (qwen3.5-9b)",
+      "purpose": "Сложные задачи: многошаговые агенты, код, анализ, поиск по заметкам. Умеет инструменты.",
+      "max_tokens": 2000,
+      "temperature": 0.3,
+      "tools": true
+    },
+    "coder": {
+      "model": "qwen2.5-coder-7b",
+      "title": "Кодер (qwen2.5-coder-7b)",
+      "purpose": "Генерация и разбор кода без инструментов (квант не умеет tool-calling).",
+      "max_tokens": 2000,
+      "temperature": 0.2,
+      "tools": false
+    },
+    "vision": {
+      "model": "nvidia-nemotron-12b-vision",
+      "title": "Зрение (nemotron-12b-VL)",
+      "purpose": "Анализ изображений и скриншотов (base64 image_url).",
+      "max_tokens": 1200,
+      "temperature": 0.3,
+      "tools": false
+    }
+  },
+  "routing": {
+    "_comment": "Эвристика выбора роли по сложности. keywords — маркеры; порядок правил = приоритет.",
+    "rules": [
+      {"role": "vision", "keywords": ["картин", "скриншот", "изображен", "фото", "image", "screenshot", "что на фото"]},
+      {"role": "coder", "keywords": ["напиши код", "рефактор", "скрипт на python", "скрипт на bash", "функция на", "класс на", "отрефактори", "исправь код", "напиши скрипт"]},
+      {"role": "fast", "keywords": ["скажи", "переведи слово", "как переводится", "одно слово", "кратко: ", "да или нет"]},
+      {"role": "hard", "keywords": ["проанализируй", "найди причину", "почему", "сравни", "составь план", "по шагам", "исследуй", "диагности", "напиши отчёт", "сводка", "агент", "найди в заметках", "проверь систему", "выполни"]},
+      {"role": "medium", "keywords": []}
+    ],
+    "default": "medium"
+  }
+}

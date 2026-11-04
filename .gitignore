@@ -1,0 +1,74 @@
+# ============================================================
+# Репозиторий «ai-combine» (корень = /home/rover)
+# Стратегия: всё игнорируется по умолчанию (/*), в Git ведётся
+# ТОЛЬКО белый список файлов проекта. Секреты и тяжёлые данные
+# исключены явно + двойной защитой внизу.
+# ============================================================
+
+/*
+# --- корень репозитория ---
+!/.gitignore
+!/README.md
+# --- каталоги проекта ---
+!/AiStart/
+!/OpenWebUI-Local/
+!/llama-cuda13/
+!/GoogleDrive/
+/GoogleDrive/*
+!/GoogleDrive/Obsidian/
+/GoogleDrive/Obsidian/*
+!/GoogleDrive/Obsidian/ИИ/
+/GoogleDrive/Obsidian/ИИ/*
+!/GoogleDrive/Obsidian/ИИ/ИИ-комбайн — полная инструкция (схемы и технология).md
+
+# --- AiStart: код, конфиги, документы (явно, поимённо) ---
+/AiStart/*
+!/AiStart/mcp_server.py
+!/AiStart/habr_scan.py
+!/AiStart/habr_bookmarks.py
+!/AiStart/habr_fetch.py
+!/AiStart/habr_config.json
+!/AiStart/ask_kb.py
+!/AiStart/photo_fix.py
+!/AiStart/agent_cli.sh
+!/AiStart/start_ai.sh
+!/AiStart/stop_ai.sh
+!/AiStart/status_ai.sh
+!/AiStart/models.ini
+!/AiStart/agents.json
+!/AiStart/obsidian.json
+!/AiStart/README.md
+!/AiStart/ОТКАТ.txt
+!/AiStart/GIT-УЧЕБНИК.md
+!/AiStart/Снимок экрана_2026-10-24_14-09-34.png
+
+# --- OpenWebUI-Local: скрипты Знаний/E2E и инструкции ---
+/OpenWebUI-Local/*
+!/OpenWebUI-Local/scripts/
+/OpenWebUI-Local/scripts/*
+!/OpenWebUI-Local/scripts/*.py
+!/OpenWebUI-Local/ИНСТРУКЦИЯ-ИИ.md
+!/OpenWebUI-Local/ИНСТРУКЦИЯ-ГРАФИКА.html
+
+# --- llama-cuda13: только документ отката (бинарники не ведём) ---
+/llama-cuda13/*
+!/llama-cuda13/ОТКАТ.txt
+
+# ============================================================
+# ЗАЩИТА СЕКРЕТОВ И МУСОРА (запрещено всегда, даже в белом списке)
+# ============================================================
+PolzaKey*
+.webui_token
+.webui_secret_key
+*.log
+*.bak*
+webui.db*
+*~
+*.pyc
+__pycache__/
+.venv*/
+habr_index.json
+habr_state.json
+habr_fetch_jobs.json
+*.key
+*.pem

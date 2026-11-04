@@ -1,0 +1,23 @@
+{
+  "feeds": [
+    "https://habr.com/ru/rss/articles/?fl=ru"
+  ],
+  "keywords": [
+    "llama", "llm", "qwen", "gguf", "cuda", "gpu", "rtx",
+    "python", "linux", "manjaro", "arch", "bash", "zsh", "git", "docker",
+    "нейросет", "машинн", "искусственн", "локальн модел",
+    "rag", "vlm", "transformer", "fine-tun", "квантов", "инференс", "embedding",
+    "obsidian", "self-hosted", "терминал", "автоматизац", "скрипт"
+  ],
+  "vault_notes_dir": "/run/media/rover/BACK/GoogleDrive/Obsidian/ИИ/Habr",
+  "router_api": "http://127.0.0.1:8081/v1",
+  "embed_api": "http://127.0.0.1:8082/v1",
+  "embed_model": "gte-modernbert",
+  "model_summarize": "qwen3.5-9b-instruct",
+  "model_qa_default": "qwen2.5-coder-7b",
+  "max_articles_per_run": 4,
+  "article_char_limit": 12000,
+  "request_delay_sec": 2,
+  "state_file": "habr_state.json",
+  "index_file": "habr_index.json"
+}

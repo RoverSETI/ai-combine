@@ -33,7 +33,7 @@ ALLOWED_PATHS = (
     "/api/v1/files/",
 )
 KB_ID = "dfe4a423-90f1-4db7-909c-206d599b8f58"
-VAULT = "/home/rover/GoogleDrive/Obsidian"
+VAULT = "/run/media/rover/BACK/GoogleDrive/Obsidian"
 TOKEN_PATH = "/tmp/webui_jwt.txt"  # только чтение
 
 

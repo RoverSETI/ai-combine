@@ -101,6 +101,36 @@ else
     echo "     obsidian_search/obsidian_read (local-tools) работают и без него"
 fi
 
+# --- gimp-mcp мост ---
+echo
+echo "── GIMP-MCP мост (:8135/mcp) ──"
+gimp_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+    "http://127.0.0.1:8135/mcp" \
+    -H 'Accept: application/json, text/event-stream' \
+    -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"status_ai","version":"1.0"}}}' 2>/dev/null)
+if [ "$gimp_code" = "200" ]; then
+    echo "  ✅ отвечает (рисование: paintbrush, bucket_fill, gradient, текст, get_bitmap)"
+else
+    echo "  ⚪ не отвечает (код $gimp_code) — GIMP-инструменты в чате недоступны"
+    [ -f "$LOG_DIR/gimp_mcp_proxy.log" ] && echo "     последние строки лога:" && tail -n 5 "$LOG_DIR/gimp_mcp_proxy.log" | sed 's/^/       /'
+fi
+
+# --- inkscape-mcp мост ---
+echo
+echo "── Inkscape-MCP мост (:8136/mcp) ──"
+ink_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 5 \
+    "http://127.0.0.1:8136/mcp" \
+    -H 'Accept: application/json, text/event-stream' \
+    -H 'Content-Type: application/json' \
+    -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"status_ai","version":"1.0"}}}' 2>/dev/null)
+if [ "$ink_code" = "200" ]; then
+    echo "  ✅ отвечает (SVG: фигуры, текст, слои, анимации, экспорт PNG/PDF/DXF)"
+else
+    echo "  ⚪ не отвечает (код $ink_code) — Inkscape-инструменты в чате недоступны"
+    [ -f "$LOG_DIR/inkscape_mcp_proxy.log" ] && echo "     последние строки лога:" && tail -n 5 "$LOG_DIR/inkscape_mcp_proxy.log" | sed 's/^/       /'
+fi
+
 # --- vram ---
 if command -v nvidia-smi >/dev/null 2>&1; then
     echo

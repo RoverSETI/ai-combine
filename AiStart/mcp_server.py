@@ -771,6 +771,23 @@ def _tool_specs() -> list:
              {"query": s_str, "top": s_int, "mode": s_str}, ["query"]),
         spec("ask_kb", "Вопрос к базе знаний конспектов Habr",
              {"question": s_str, "model": s_str, "top": s_int}, ["question"]),
+        spec("web_search", "Поиск в интернете (DuckDuckGo): заголовки, URL, сниппеты",
+             {"query": s_str, "limit": s_int}, ["query"]),
+        spec("web_fetch", "Скачать страницу по URL и вернуть чистый текст",
+             {"url": s_str, "max_chars": s_int}, ["url"]),
+        spec("image_describe", "Распознать картинку локальной VL-моделью (текст, сцены, объекты)",
+             {"path": s_str, "question": s_str}, ["path"]),
+        spec("image_generate", "НАРИСОВАТЬ картинку локально (FLUX). Перед вызовом: ai_unload all!",
+             {"prompt": s_str, "output": s_str, "width": s_int, "height": s_int, "steps": s_int},
+             ["prompt"]),
+        spec("glm_think", "Глубокое размышление GLM (облако) — только для самых сложных вопросов",
+             {"question": s_str, "system": s_str, "max_tokens": s_int}, ["question"]),
+        spec("glm_vision", "Анализ картинки GLM-4.6V (облако) — если локальная VL не справила",
+             {"path": s_str, "question": s_str}, ["path", "question"]),
+        spec("glm_review", "Проверить свой ответ/код через GLM (контроль качества)",
+             {"task": s_str, "draft": s_str, "strict": s_bool}, ["task", "draft"]),
+        spec("stt_transcribe", "Транскрибация аудиофайла (GigaAM, русский). Перед вызовом: ai_unload all!",
+             {"path": s_str, "clean": s_bool}, ["path"]),
         spec("photo_fix", "Реставрация фото (пресеты old/modern)",
              {"input_path": s_str, "preset": s_str, "rotate": s_num, "crop": s_str,
               "denoise": s_str, "fix_cracks": s_str, "mask": s_str,
@@ -814,6 +831,13 @@ def _dispatch(name: str, args: dict) -> str:
             return ask_kb(**args)
         if name == "photo_fix":
             return photo_fix(**args)
+        # swarm-инструменты (web/glm/stt/image) — делегируем в модуль swarm_tools
+        try:
+            import swarm_tools as _sw
+        except Exception:
+            _sw = None
+        if _sw is not None and hasattr(_sw, name):
+            return str(getattr(_sw, name)(**args))
         return f"неизвестная функция {name}"
     except Exception as e:
         return f"ошибка вызова {name}: {e}"
@@ -1147,6 +1171,14 @@ def ai_agent(task: str, role: str = "hard", max_steps: int = 8) -> str:
             messages.append({"role": "tool", "tool_call_id": call.get("id", ""), "content": result[:6000]})
     return "## Ход решения\n" + "\n".join(transcript) + \
         "\n\n## Итог\n⚠️ Достигнут лимит шагов — задача не завершена, результаты выше."
+
+
+# ---- swarm_tools: инструменты роя (web/glm/vision/stt) из SwarmConfig ----
+try:
+    import swarm_tools  # noqa: F401  регистрирует свои @mcp.tool() на этот же сервер
+except Exception as _e:
+    import sys as _sys
+    print(f"swarm_tools не загрузился: {_e}", file=_sys.stderr)
 
 
 # ============================================================ запуск

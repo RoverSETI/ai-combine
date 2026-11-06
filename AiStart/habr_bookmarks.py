@@ -27,7 +27,7 @@ from pathlib import Path
 
 HABR = "https://habr.com"
 UA = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64; rv:130.0) Gecko/20100101 Firefox/130.0"}
-VAULT_DIR = Path("/home/rover/GoogleDrive/Obsidian/ИИ/Habr")
+VAULT_DIR = Path("/run/media/rover/BACK/GoogleDrive/Obsidian/ИИ/Habr")
 VAULT_NAME = "Obsidian"
 DNS_CACHE = {}
 MAX_BYTES = 20 * 1024 * 1024

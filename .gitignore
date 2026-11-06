@@ -84,3 +84,7 @@ habr_state.json
 habr_fetch_jobs.json
 *.key
 *.pem
+
+# SwarmConfig: локальные бэкапы и runtime-состояние
+SwarmConfig/backup/
+SwarmConfig/state/

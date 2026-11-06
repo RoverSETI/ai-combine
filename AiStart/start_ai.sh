@@ -172,6 +172,43 @@ case $? in
     *) report_fail "$LOG_DIR/mcp_server.log"; log "⚠️ продолжаю без MCP-инструментов" ;;
 esac
 
+# ---------------- 5.5. GIMP-MCP мост (рисование, :8135/mcp) ----------------
+GIMP_PROXY_BIN="/home/rover/.local/bin/mcp-proxy"
+if [ -x "$GIMP_PROXY_BIN" ] && command -v gimp-mcp >/dev/null 2>&1; then
+    log "🖌  Запуск GIMP-MCP моста (:8135/mcp)..."
+    : > "$LOG_DIR/gimp_mcp_proxy.log"
+    nohup "$GIMP_PROXY_BIN" --host 127.0.0.1 --port 8135 -- gimp-mcp serve \
+        > "$LOG_DIR/gimp_mcp_proxy.log" 2>&1 < /dev/null &
+    GIMP_PID=$!
+    echo "$GIMP_PID" > "$RUN_DIR/gimp_mcp_proxy.pid"
+    wait_mcp "http://127.0.0.1:8135/mcp" 30 "$GIMP_PID"
+    case $? in
+        0) log "✅ GIMP-MCP мост готов (PID $GIMP_PID)" ;;
+        *) report_fail "$LOG_DIR/gimp_mcp_proxy.log"; log "⚠️ продолжаю без GIMP-инструментов" ;;
+    esac
+else
+    log "⚠️  mcp-proxy или gimp-mcp не найдены — GIMP-инструменты недоступны"
+fi
+
+# ---------------- 5.6. Inkscape-MCP мост (векторная графика, :8136/mcp) ----------------
+INK_PROXY_BIN="/home/rover/.local/bin/mcp-proxy"
+INK_SERVER="/home/rover/mcp-inkscape/inkscape-mcp/.venv/bin/inkscape-mcp"
+if [ -x "$INK_PROXY_BIN" ] && [ -x "$INK_SERVER" ]; then
+    log "✏️  Запуск Inkscape-MCP моста (:8136/mcp)..."
+    : > "$LOG_DIR/inkscape_mcp_proxy.log"
+    nohup "$INK_PROXY_BIN" --host 127.0.0.1 --port 8136 -- "$INK_SERVER" --mode stdio \
+        > "$LOG_DIR/inkscape_mcp_proxy.log" 2>&1 < /dev/null &
+    INK_PID=$!
+    echo "$INK_PID" > "$RUN_DIR/inkscape_mcp_proxy.pid"
+    wait_mcp "http://127.0.0.1:8136/mcp" 30 "$INK_PID"
+    case $? in
+        0) log "✅ Inkscape-MCP мост готов (PID $INK_PID)" ;;
+        *) report_fail "$LOG_DIR/inkscape_mcp_proxy.log"; log "⚠️ продолжаю без Inkscape-инструментов" ;;
+    esac
+else
+    log "⚠️  mcp-proxy или inkscape-mcp не найдены — Inkscape-инструменты недоступны"
+fi
+
 # ---------------- 6. прогрев конвейера ----------------
 if [ -n "$WARMUP_MODEL" ]; then
     log "🔥 Прогрев: $WARMUP_MODEL (первая загрузка модели в VRAM)..."
@@ -205,6 +242,11 @@ export ENABLE_AUTOCOMPLETE_GENERATION=False
 export ENABLE_FOLLOW_UP_GENERATION=False
 
 export HOST="$WEBUI_BIND" PORT="$WEBUI_PORT"
+
+# Лимит открытых файлов: 1024 по умолчанию не хватает для batch-обработки Знаний
+# (RAG-эмбеддинги через aiohttp → "Too many open files", файлы молча не привязываются).
+# prlimit на живом процессе действует до рестарта, поэтому дублируем здесь.
+ulimit -n 8192 2>/dev/null || true
 
 : > "$LOG_DIR/open_webui.log"
 nohup open-webui serve --host "$WEBUI_BIND" --port "$WEBUI_PORT" \

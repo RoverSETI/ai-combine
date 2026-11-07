@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300">
+  <rect width="400" height="300" fill="#1e2a4a"/>
+  <polygon points="200,40 229,120 314,120 246,171 271,251 200,204 129,251 154,171 86,120 171,120"
+           fill="#f5c542" stroke="#ffffff" stroke-width="3"/>
+  <text x="200" y="285" font-family="sans-serif" font-size="22" fill="#ffffff"
+        text-anchor="middle">ИИ-Комбайн</text>
+</svg>

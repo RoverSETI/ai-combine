@@ -67,9 +67,60 @@
 !/llama-cuda13/ОТКАТ.txt
 
 # ============================================================
+# AI-Combine: единая папка комбайна (07.11.2026, компоненты перемещены)
+# ============================================================
+!/AI-Combine/
+/AI-Combine/*
+!/AI-Combine/СТРУКТУРА.md
+
+# AiStart: весь код/конфиги (секреты и мусор запрещены внизу)
+!/AI-Combine/AiStart/
+/AI-Combine/AiStart/*
+!/AI-Combine/AiStart/**
+/AI-Combine/AiStart/logs/
+/AI-Combine/AiStart/run/
+/AI-Combine/AiStart/mod/
+/AI-Combine/AiStart/Снимок экрана_2026-10-24_14-09-34.png
+
+# SwarmConfig: конфиги роя, генератор, инструкции, функция компрессора
+!/AI-Combine/SwarmConfig/
+/AI-Combine/SwarmConfig/*
+!/AI-Combine/SwarmConfig/**
+
+# OpenWebUI-Local: скрипты Знаний/E2E и инструкции (venv/data — вне Git)
+!/AI-Combine/OpenWebUI-Local/
+/AI-Combine/OpenWebUI-Local/*
+!/AI-Combine/OpenWebUI-Local/scripts/
+/AI-Combine/OpenWebUI-Local/scripts/*
+!/AI-Combine/OpenWebUI-Local/scripts/*.py
+!/AI-Combine/OpenWebUI-Local/ИНСТРУКЦИЯ-ИИ.md
+!/AI-Combine/OpenWebUI-Local/ИНСТРУКЦИЯ-ГРАФИКА.html
+
+# giga_speech: только python-скрипты STT (venv и веса model/ — вне Git)
+!/AI-Combine/giga_speech/
+/AI-Combine/giga_speech/*
+!/AI-Combine/giga_speech/*.py
+
+# mcp-gimp: мост целиком (6 МБ, конфиги/скрипты)
+!/AI-Combine/mcp-gimp/
+/AI-Combine/mcp-gimp/*
+!/AI-Combine/mcp-gimp/**
+
+# mcp-inkscape: код (venv запрещён глобальным правилом .venv*/ внизу)
+!/AI-Combine/mcp-inkscape/
+/AI-Combine/mcp-inkscape/*
+!/AI-Combine/mcp-inkscape/**
+
+# llama-cuda13 (новый путь): только документ отката
+!/AI-Combine/llama-cuda13/
+/AI-Combine/llama-cuda13/*
+!/AI-Combine/llama-cuda13/ОТКАТ.txt
+
+# ============================================================
 # ЗАЩИТА СЕКРЕТОВ И МУСОРА (запрещено всегда, даже в белом списке)
 # ============================================================
 PolzaKey*
+ZaiKey*
 .webui_token
 .webui_secret_key
 *.log

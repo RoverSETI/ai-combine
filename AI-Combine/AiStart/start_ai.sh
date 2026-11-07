@@ -209,6 +209,27 @@ else
     log "⚠️  mcp-proxy или inkscape-mcp не найдены — Inkscape-инструменты недоступны"
 fi
 
+# ---------------- 5.7. Maigret-OSINT мост (поиск никнейма, :8095/mcp) ----------------
+OSINT_PROXY_BIN="/home/rover/.local/bin/mcp-proxy"
+if [ -x "$OSINT_PROXY_BIN" ] && [ -x "/home/rover/.local/bin/maigret" ]; then
+    log "🔎 Запуск Maigret-OSINT моста (:8095/mcp)..."
+    : > "$LOG_DIR/maigret_osint_proxy.log"
+    nohup "$OSINT_PROXY_BIN" --host 127.0.0.1 --port 8095 \
+        -e MAIGRET_REPORTS_DIR="/home/rover/AI-Combine/tools/maigret-reports" \
+        -e MAIGRET_RUNNER=local \
+        -- mcp-maigret \
+        > "$LOG_DIR/maigret_osint_proxy.log" 2>&1 < /dev/null &
+    OSINT_PID=$!
+    echo "$OSINT_PID" > "$RUN_DIR/maigret_osint_proxy.pid"
+    wait_mcp "http://127.0.0.1:8095/mcp" 30 "$OSINT_PID"
+    case $? in
+        0) log "✅ Maigret-OSINT мост готов (PID $OSINT_PID)" ;;
+        *) report_fail "$LOG_DIR/maigret_osint_proxy.log"; log "⚠️ продолжаю без OSINT-инструментов" ;;
+    esac
+else
+    log "⚠️  mcp-proxy или maigret не найдены — OSINT-инструменты недоступны"
+fi
+
 # ---------------- 6. прогрев конвейера ----------------
 if [ -n "$WARMUP_MODEL" ]; then
     log "🔥 Прогрев: $WARMUP_MODEL (первая загрузка модели в VRAM)..."

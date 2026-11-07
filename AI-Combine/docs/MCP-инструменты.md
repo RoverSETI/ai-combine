@@ -16,6 +16,7 @@
 | stt_transcribe | GigaAM-v3 транскрибация (локально, GPU) |
 | image_describe / image_generate | nemotron-VL и FLUX (sd.cpp) |
 | ai_status / ai_ask | статус ролей / вопрос к рою |
+| **OSINT Maigret** (отдельный toolset) | `search_username` — ник по 509+ сайтам (бесплатно, MIT); `parse_url` — разбор URL профиля; отчёты txt/html/pdf/json |
 
 ## Служебные (вне чата, полный список на :8089)
 

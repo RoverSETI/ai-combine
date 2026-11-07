@@ -10,7 +10,7 @@
 |---|---|
 | habr_search / habr_read / habr_save / habr_bookmarks | поиск по habr.com, чтение статьи, сохранение в Obsidian, закладки за период |
 | kb_search / ask_kb | семантический поиск по базе Знаний + конспектам Хабра |
-| obsidian_search / obsidian_read | grep и чтение vault (BACK) |
+| obsidian_search / obsidian_read | grep и чтение vault (`<VAULT-диск>`) |
 | web_search / web_fetch | DuckDuckGo без ключа + чтение страниц (SSRF-гвард) |
 | glm_think / glm_review / glm_vision | облачный GLM: сложное / проверка / картинки |
 | stt_transcribe | GigaAM-v3 транскрибация (локально, GPU) |

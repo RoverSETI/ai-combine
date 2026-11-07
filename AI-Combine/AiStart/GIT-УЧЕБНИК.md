@@ -9,7 +9,7 @@
 - **Репозиторий** (`.git/` в `/home/rover`) — архив всех версий всех файлов проекта.
 - **Коммит** — «снимок» файлов + подпись кто/когда/зачем. У каждого коммита — уникальный хэш (например `a1b2c3d`).
 - **Ветка** — линия истории. У нас одна рабочая: `main`.
-- **Remote** — внешнее хранилище того же репозитория. У нас два: `back` (диск BACK) и `github`.
+- **Remote** — внешнее хранилище того же репозитория. У нас два: `back` (диск `<VAULT-диск>`) и `github`.
 - **push** — отправить свои коммиты в remote. **pull** — забрать оттуда. **clone** — склонировать заново.
 - **Рабочая зона → индекс → коммит**: сначала вы меняете файлы, потом `git add` выбирает что войдёт, потом `git commit` фиксирует.
 
@@ -19,7 +19,7 @@
 git status                 # что изменилось? (самая частая команда)
 git add -A                 # взять всё изменённое в будущий коммит
 git commit -m "feat: что сделал"   # зафиксировать снимок
-git push back main         # отправить на диск BACK
+git push back main         # отправить на диск `<VAULT-диск>`
 git push github main       # отправить на GitHub
 ```
 
@@ -56,12 +56,12 @@ git restore --source=a1b2c3d AiStart/models.ini
 
 ```bash
 git remote -v               # список: back, github
-git push back main          # резервная копия на BACK
+git push back main          # резервная копия на `<VAULT-диск>`
 git push github main        # облако GitHub
-git clone /run/media/rover/BACK/git/ai-combine.git ~/restore-test  # восстановиться целиком
+git clone /run/media/rover/`<VAULT-диск>`/git/ai-combine.git ~/restore-test  # восстановиться целиком
 ```
 
-**Если диск BACK не смонтирован** — push на `back` выдаст ошибку «not a git repository»:
+**Если диск `<VAULT-диск>` не смонтирован** — push на `back` выдаст ошибку «not a git repository»:
 просто смонтируйте диск и повторите. GitHub работает всегда, где есть интернет.
 
 ## 6. Чего НЕ делать
@@ -80,7 +80,7 @@ git clone /run/media/rover/BACK/git/ai-combine.git ~/restore-test  # восст�
 | Хочу увидеть, что войдёт в коммит | `git status` + `git diff --staged` |
 | Случайно добавил лишний файл | `git restore --staged <файл>` |
 | Хочу вернуться к «как было вчера» | `git log --oneline` → `git restore --source=<хэш> <файл>` |
-| Push на BACK ругается | Смонтируйте BACK: `ls /run/media/rover/BACK` |
+| Push на `<VAULT-диск>` ругается | Смонтируйте `<VAULT-диск>`: `ls /run/media/rover/`<VAULT-диск>`` |
 | Забыл, что означают команды | `git help <команда>` или этот файл |
 
 ## 8. Как я (ZCode) работаю с репозиторием

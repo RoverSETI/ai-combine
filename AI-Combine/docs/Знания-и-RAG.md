@@ -9,11 +9,11 @@
 ## Vault — ЕДИНСТВЕННЫЙ правильный путь
 
 ```
-/run/media/rover/BACK/GoogleDrive/Obsidian/
+`<VAULT>`/
 ```
 `~/GoogleDrive/` — бекап, НЕ использовать и НЕ восстанавливать из него без явной просьбы.
 
-## Скрипты синхронизации (пути уже на BACK)
+## Скрипты синхронизации (пути уже на `<VAULT-диск>`)
 
 ```bash
 ~/OpenWebUI-Local/scripts/sync_knowledge.py --dry-run   # diff без изменений

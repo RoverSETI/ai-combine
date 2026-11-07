@@ -95,6 +95,9 @@ def _glm_key() -> str:
     f = zai_key_file if zai_key_file.is_file() else GLM_KEY_FILE
     lines = f.read_text(encoding='utf-8').strip().splitlines()
     key = lines[0].strip() if lines else ''
+    # Файл может содержать ключ + русскую пометку после него: HTTP-заголовок
+    # принимает только latin-1, поэтому берём первый токен (сам ключ).
+    key = key.split()[0] if key else ''
     if not key:
         raise ValueError('ключ GLM пуст (' + f.name + ')')
     return key

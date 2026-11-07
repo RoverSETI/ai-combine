@@ -20,18 +20,9 @@
 !/AiStart/
 !/OpenWebUI-Local/
 !/llama-cuda13/
-!/GoogleDrive/
-/GoogleDrive/*
-!/GoogleDrive/Obsidian/
-/GoogleDrive/Obsidian/*
-!/GoogleDrive/Obsidian/*.md
-!/GoogleDrive/Obsidian/*/
-!/GoogleDrive/Obsidian/**/
-/GoogleDrive/Obsidian/**/*.*
-!/GoogleDrive/Obsidian/**/*.md
-/GoogleDrive/Obsidian/.obsidian/
-/GoogleDrive/Obsidian/.trash/
-/GoogleDrive/Obsidian/.smart-env/
+
+# --- личное: НЕ публиковать никогда ---
+/GoogleDrive/
 
 # --- AiStart: код, конфиги, документы (явно, поимённо) ---
 /AiStart/*

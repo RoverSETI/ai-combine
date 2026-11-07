@@ -72,6 +72,9 @@
 !/AI-Combine/
 /AI-Combine/*
 !/AI-Combine/СТРУКТУРА.md
+!/AI-Combine/docs/
+/AI-Combine/docs/*
+!/AI-Combine/docs/**
 
 # AiStart: весь код/конфиги (секреты и мусор запрещены внизу)
 !/AI-Combine/AiStart/

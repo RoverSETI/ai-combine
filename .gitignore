@@ -86,6 +86,8 @@
 !/AI-Combine/SwarmConfig/
 /AI-Combine/SwarmConfig/*
 !/AI-Combine/SwarmConfig/**
+/AI-Combine/SwarmConfig/backup/
+/AI-Combine/SwarmConfig/state/
 
 # OpenWebUI-Local: скрипты Знаний/E2E и инструкции (venv/data — вне Git)
 !/AI-Combine/OpenWebUI-Local/

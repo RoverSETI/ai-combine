@@ -48,5 +48,5 @@
 
 | Имя remote | Адрес | Назначение |
 |---|---|---|
-| `back` | `/run/media/rover/BACK/git/ai-combine.git` (bare) | локальная резервная копия, офлайн |
+| `back` | `/run/media/rover/`<VAULT-диск>`/git/ai-combine.git` (bare) | локальная резервная копия, офлайн |
 | `github` | `git@github.com:RoverSETI/ai-combine.git` | облачная копия (приватная) |

@@ -26,7 +26,7 @@
 
 ## Ключевые решения (2026-11)
 
-- Vault Obsidian **только** `/run/media/rover/BACK/GoogleDrive/Obsidian` (бекап в ~/GoogleDrive не использовать)
+- Vault Obsidian **только** ``<VAULT>`` (бекап в ~/GoogleDrive не использовать)
 - Компоненты перемещены в `AI-Combine`, старые пути — симлинки-алиасы
 - ulimit fd 8192 (перманентно в start_ai.sh) — иначе RAG-батчи молча теряют файлы
 - ctx qwen3.5-9b = 49152 (V-квант KV-кэша) — промпт с 18 MCP-спеками + RAG ≈ 41–42k

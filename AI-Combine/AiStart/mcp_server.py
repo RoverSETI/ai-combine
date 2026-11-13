@@ -777,7 +777,7 @@ def _tool_specs() -> list:
              {"url": s_str, "max_chars": s_int}, ["url"]),
         spec("image_describe", "Распознать картинку локальной VL-моделью (текст, сцены, объекты)",
              {"path": s_str, "question": s_str}, ["path"]),
-        spec("image_generate", "НАРИСОВАТЬ картинку локально (FLUX). Перед вызовом: ai_unload all!",
+        spec("image_generate", "НАРИСОВАТЬ картинку локально (FLUX через ComfyUI :8188, фолбэк sd.cpp). VRAM освобождает сам.",
              {"prompt": s_str, "output": s_str, "width": s_int, "height": s_int, "steps": s_int},
              ["prompt"]),
         spec("glm_think", "Глубокое размышление GLM (облако) — только для самых сложных вопросов",

@@ -433,7 +433,7 @@ def image_describe(path: str, question: str = 'Подробно опиши из�
 
 @mcp.tool()
 def image_generate(prompt: str, output: str = '', width: int = 512, height: int = 512, steps: int = 4) -> str:
-    """Нарисовать картинку ЛОКАЛЬНО: FLUX.1-schnell через stable-diffusion.cpp.
+    """Нарисовать картинку ЛОКАЛЬНО: FLUX через ComfyUI (:8188), фолбэк — stable-diffusion.cpp.
 
     Сам освобождает VRAM: если модели роутера заняли память — выгружает их;
     модель агента WebUI вернётся автоматически на следующем шаге цикла.
@@ -487,15 +487,28 @@ def image_generate(prompt: str, output: str = '', width: int = 512, height: int 
         unloaded = f' (авто-выгружено моделей: {n})'
     else:
         unloaded = ''
+    # Ветка 1: локальный ComfyUI (:8188) — основной движок (FLUX GGUF, workflow в tools/comfy_flux.py)
+    _tools_dir = Path('/home/rover/AI-Combine/tools')
+    if str(_tools_dir) not in _sys.path:
+        _sys.path.insert(0, str(_tools_dir))
+    try:
+        import comfy_flux
+        if comfy_flux.server_alive():
+            res = comfy_flux.flux_generate(prompt, str(op), width, height, steps)
+            if res.startswith('✅'):
+                return res + ' (ComfyUI)' + unloaded
+    except Exception:
+        pass  # молча переходим на фолбэк sd.cpp
+    # Ветка 2 (фолбэк): stable-diffusion.cpp
     cmd = [SD_CLI,
-        '--diffusion-model', SD_DIR + '/flux1-schnell-Q4_K_S.gguf',
-        '--clip_l', SD_DIR + '/clip_l.safetensors',
-        '--t5xxl', SD_DIR + '/t5-v1_1-xxl-encoder-Q5_K_M.gguf',
-        '--vae', SD_DIR + '/ae.safetensors',
+        '--diffusion-model', '/home/rover/AI-Combine/AI-Models/flux/flux1-schnell-Q4_K_S.gguf',
+        '--clip_l', '/home/rover/AI-Combine/AI-Models/flux/clip_l.safetensors',
+        '--t5xxl', '/home/rover/AI-Combine/AI-Models/flux/t5-v1_1-xxl-encoder-Q5_K_M.gguf',
+        '--vae', '/home/rover/AI-Combine/AI-Models/flux/ae.safetensors',
         '--prompt', prompt, '--cfg-scale', '1.0',
-        '--steps', str(max(1, min(int(steps or 4), 8))),
-        '--width', str(max(128, min(int(width or 512), 1024))),
-        '--height', str(max(128, min(int(height or 512), 1024))),
+        '--steps', str(max(1, min(int(steps or 4), 16))),
+        '--width', str(max(128, min(int(width or 512), 2048))),
+        '--height', str(max(128, min(int(height or 512), 2048))),
         '-v', '-o', str(op)]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd=SD_DIR)

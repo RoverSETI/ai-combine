@@ -30,7 +30,7 @@ WEBUI_BIND="127.0.0.1";  WEBUI_PORT=8080
 
 THREADS=6
 MODELS_MAX=1                        # моделей одновременно в VRAM (12 ГБ → 1)
-WARMUP_MODEL="qwen2.5-coder-0.5b"   # прогрев конвейера ("" = выключить)
+WARMUP_MODEL="qwen3-4b-instruct-2507"   # прогрев конвейера ("" = выключить) — 14.11: 0.5b удалена из роя
 WARMUP_TIMEOUT=120
 CORS_ORIGINS="http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081"
 

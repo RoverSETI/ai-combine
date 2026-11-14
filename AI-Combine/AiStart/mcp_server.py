@@ -197,6 +197,63 @@ def obsidian_read(path: str, max_chars: int = 6000) -> str:
     return text
 
 
+# ============================================================ Векторизация (vtracer)
+
+_ALLOWED_IMG_DIRS = ("/home/rover",)
+_IMG_EXT = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
+
+
+@mcp.tool()
+def vectorize_file(file_path: str, color_precision: int = 7,
+                   filter_speckle: int = 10, layer_difference: int = 24,
+                   mode: str = "spline") -> str:
+    """Векторизовать растровое изображение в SVG (vtracer, цветная трассировка).
+
+    Рисунки/логотипы/скриншоты → векторные кривые (spline) с палитрой цветов.
+    Работает локально, за секунды, без нейросетей.
+
+    Args:
+        file_path: абсолютный путь к изображению (.jpg/.jpeg/.png/.webp/.bmp/.tif/.tiff)
+        color_precision: точность палитры 1–8 (меньше — меньше цветов)
+        filter_speckle: фильтр мусорных пятен 0–100 (выше — чище)
+        layer_difference: шаг цветовых слоёв 0–64 (выше — крупнее зоны)
+        mode: spline (гладкие кривые) | polygon (полигоны) | none (узлы по контуру)
+    """
+    import time as _t
+    try:
+        import vtracer
+    except ImportError:
+        return "⛔ vtracer не установлен в venv WebUI (uv pip install vtracer)"
+    src = Path(file_path).expanduser().resolve()
+    if not src.as_posix().startswith(_ALLOWED_IMG_DIRS):
+        return "⛔ Файл должен лежать внутри /home/rover"
+    if src.suffix.lower() not in _IMG_EXT:
+        return f"⛔ Неверное расширение: {src.suffix} (нужно одно из {sorted(_IMG_EXT)})"
+    if not src.is_file():
+        return f"⛔ Файл не найден: {src}"
+    if mode not in ("spline", "polygon", "none"):
+        return "⛔ mode: spline | polygon | none"
+    out = src.with_suffix(".svg")
+    t0 = _t.time()
+    try:
+        vtracer.convert_image_to_svg_py(
+            str(src), str(out), colormode="color", hierarchical="stacked",
+            mode=mode, filter_speckle=int(filter_speckle),
+            color_precision=int(color_precision),
+            layer_difference=int(layer_difference),
+            corner_threshold=60, length_threshold=4.0,
+            splice_threshold=45, path_precision=2)
+    except Exception as e:
+        return f"⛔ Ошибка трассировки: {e}"
+    dt = _t.time() - t0
+    kb = out.stat().st_size // 1024
+    return (f"✅ SVG готов за {dt:.1f} с: {out} ({kb} КБ)\n"
+            f"Параметры: color_precision={color_precision}, filter_speckle={filter_speckle}, "
+            f"layer_difference={layer_difference}, mode={mode}\n"
+            f"Подстройка: меньше color_precision — проще палитра; выше filter_speckle — "
+            f"меньше мусора; ниже layer_difference — точнее цвета.")
+
+
 # ============================================================ Habr / база знаний
 
 

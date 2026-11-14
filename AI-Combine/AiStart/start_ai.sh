@@ -242,8 +242,8 @@ if [ -x "$OSINT_PROXY_BIN" ] && [ -x "/home/rover/.local/bin/maigret" ]; then
     log "🔎 Запуск Maigret-OSINT моста (:8095/mcp)..."
     : > "$LOG_DIR/maigret_osint_proxy.log"
     nohup "$OSINT_PROXY_BIN" --host 127.0.0.1 --port 8095 \
-        -e MAIGRET_REPORTS_DIR="/home/rover/AI-Combine/tools/maigret-reports" \
-        -e MAIGRET_RUNNER=local \
+        -e MAIGRET_REPORTS_DIR /home/rover/AI-Combine/tools/maigret-reports \
+        -e MAIGRET_RUNNER local \
         -- mcp-maigret \
         > "$LOG_DIR/maigret_osint_proxy.log" 2>&1 < /dev/null &
     OSINT_PID=$!

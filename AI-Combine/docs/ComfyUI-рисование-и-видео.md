@@ -74,6 +74,39 @@ CLIPTextEncode (инструкция) → **ReferenceLatent** (conditioning+late
 FluxGuidance 2.5 → KSampler (denoise 1.0, latent = кодированная картинка) →
 VAEDecodeTiled → Save. MCP-обёртка — следующий шаг (см. vault-раздел «Инструменты»).
 
+## Новые семейства 14.11: Z-Image Turbo, Qwen-Image 2.1 (T2I + Edit), MOSS
+
+Физика по семействам: `AI-Models/z-image/`, `AI-Models/qwen-image/`,
+`AI-Models/moss-image/` (curl сразу в целевую папку, без дублей).
+
+- **Z-Image Turbo** (int8_convrot 5,8 ГБ + bf16 11,5): CLIPLoaderGGUF
+  (type=qwen_image) + **GGUF-энкодер Qwen3-4B из стека** (AI-Models/text/,
+  auto-детект TEModel.QWEN3_4B→z_image.te) + ModelSamplingAuraFlow shift 3.0 +
+  TextEncodeZImageOmni + KSampler 8 шагов cfg 1.0. VAE общий с FLUX.
+  Тест: 1024², ~50 с. bf16-вариант — макс. качество, первый кандидат на удаление.
+- **Qwen-Image 2.1 Turbo** (int8 6,8 ГБ + qwen3vl_8b энкодер 8,7 + VAE 0,63):
+  CLIPLoader type=qwen_image + TextEncodeQwenImage21 (prompt+negative в одной
+  ноде, negative=выход [4,1]) + **БЕЗ ModelSamplingSD3** (shift даёт шум) +
+  KSampler 8 шагов cfg 1.0. Русский промпт понимает нативно. Тест ~55 с.
+- **Edit-режимы**: Qwen-Image 2.1 Edit (база int8 + pe_i2i энкодер qwen3.5_9b
+  int8), MOSS-Image (sft int8 + edit-LoRA + qwen3.5_9b int8 энкодер +
+  flux2-vae) — под встроенные шаблоны Templates; докачка сразу в AI-Models.
+  P-H3-Image отложен (20B, медленный на 3060).
+- Готовые workflow: `ComfyUI/user/default/workflows/` (Z-Image-Turbo-1024,
+  Qwen-Image-21-Turbo-1024, API-формат).
+- **VRAM-политика (пользователь)**: ComfyUI — главный по графике; LLM-рой
+  выгружается перед генерацией (ai_unload / kill инстанса; multi-load роутера
+  поднимает обратно при обращении). «Последний запущенный получает память».
+
+## Перевод промптов ru→en (14.11)
+
+**AlekPet Nodes** (custom_nodes) + **Argos Translate** офлайн в venv
+(`uv pip install --python .venv/bin/python argostranslate`, модель ru→en
+установлена). Нода **ArgosTranslateCLIPTextEncodeNode** — вместо CLIP Text
+Encode, промпт по-русски. GoogleTranslateNode не работает из РФ (gtx «Sorry»).
+Custom-Scripts (pythongosssss) — тоже стоит (автокомплит/ShowText), перевода
+в нём нет. Qwen-Image русский понимает нативно — перевод для FLUX/Wan/Z-Image.
+
 ## Откат
 
 `gio trash ~/AI-Combine/ComfyUI` + убрать блок 5.1 из start_ai.sh (бэкап

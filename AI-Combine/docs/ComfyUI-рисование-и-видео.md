@@ -138,13 +138,18 @@ LLM-рой выгружай перед генерацией («последни�
 
 ### Для ИИ (API: MCP :8089 и ComfyUI :8188)
 
-**Инструкция:** два MCP-тула на сервере local-tools (`http://127.0.0.1:8089/mcp`):
+**Инструкция:** три MCP-тула на сервере local-tools (`http://127.0.0.1:8089/mcp`):
 - `photo_restore_comfy(input_path, output?, mode="scratch"|"quality",
   face_enhance=true, scale=1|2|4)` — BOPBTL: царапины+качество, лица,
   апскейл 4x-UltraSharp;
 - `photo_colorize(input_path, output?, mode="colorize"|"restore"|"edit",
   prompt?, steps=8, seed=0, resolution=1024)` — Qwen-Image 2.1 Turbo Edit:
-  раскраска, реставрация промптом, любые правки своим текстом.
+  раскраска, реставрация промптом, любые правки своим текстом;
+- `photo_outpaint(input_path, output?, prompt?, left/top/right/bottom=256,
+  feathering=64, steps=8, seed=0)` — дополнение оторванных краёв
+  (ImagePadForOutpaint → VAEEncode → SetLatentNoiseMask → KSampler:
+  модель правит ТОЛЬКО поля, исходная часть не трогается; значения полей —
+  пиксели, кратно 8).
 Результат: `~/Pictures/comfy/<время>_<prefix>.png` или путь из `output`.
 
 **Пример:**
@@ -161,7 +166,11 @@ curl -s http://127.0.0.1:8089/mcp -H 'mcp-session-id: <SID>' \
 **Пояснение:** референс-картинка для Qwen-Edit подаётся в autogrow-поле
 `images` **словарём** (`{"image_1": [node,slot]}`) — строкой `image_1` не
 работает; латент у этой ноды пустой (размер = референс), поэтому denoise 1.0.
-pe_i2i-энкодер — это промпт-энхансер, НЕ conditioning. BOPBTL-модели лежат в
+При переданном VAE картинка попадает в DiT как `reference_latents` +
+`image_slots` (проверено: «перекрась одежду в красный» сохраняет позу/фон/лицо
+на 100%). Для outpaint ОБЯЗАТЕЛЬНА маска `SetLatentNoiseMask` — без неё модель
+перерисовывает весь кадр по промпту. pe_i2i-энкодер — это промпт-энхансер,
+НЕ conditioning. BOPBTL-модели лежат в
 подпапках (`models/checkpoints/restoration/mapping_scratch/latest_net_mapping_net.pth`)
 — при переносе не складывать плоско: все файлы называются `latest_net_*.pth`
 и перезапишут друг друга. Физика моделей — в официальных папках

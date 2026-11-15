@@ -76,7 +76,10 @@ mcp = MCPServer(
         "photo_restore_comfy — глубокая ИИ-реставрация старых фото (BOPBTL: царапины, "
         "шум, лица, апскейл UltraSharp; GPU, требует запущенный ComfyUI :8188). "
         "photo_colorize — раскраска ч/б фото и реставрация промптом (Qwen-Image 2.1 Edit; "
-        "GPU, требует запущенный ComfyUI :8188). Результаты — в ~/Pictures/comfy или по output. "
+        "GPU, требует запущенный ComfyUI :8188). "
+        "photo_outpaint — дополнение оторванных краёв фото (Qwen-Edit + маска: "
+        "исходная часть не меняется, дорисовываются только поля). "
+        "Результаты — в ~/Pictures/comfy или по output. "
         "agent_task — многошаговая задача: модель сама составляет план и выполняет его "
         "по шагам, вызывая эти же инструменты. "
         "АГЕНТЫ ПО СЛОЖНОСТИ (конфиг agents.json): ai_ask — один проход с авто-выбором "
@@ -975,6 +978,65 @@ def photo_colorize(input_path: str, output: str = "", mode: str = "colorize",
     return _comfy_save(outs, output, mode)
 
 
+def _qwen_outpaint_graph(image_name: str, prompt: str, negative: str = "",
+                         left: int = 256, top: int = 256, right: int = 256,
+                         bottom: int = 256, feathering: int = 64,
+                         steps: int = 8, seed: int = 0) -> dict:
+    """API-граф Qwen-Edit outpaint: ImagePadForOutpaint (IMAGE+MASK) →
+    VAEEncode → SetLatentNoiseMask (правятся только поля) → KSampler."""
+    return {
+        "1": {"class_type": "LoadImage", "inputs": {"image": image_name}},
+        "2": {"class_type": "UNETLoader",
+              "inputs": {"unet_name": "qwen_image_2.1_turbo_int8_convrot.safetensors",
+                         "weight_dtype": "default"}},
+        "3": {"class_type": "CLIPLoader",
+              "inputs": {"clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+                         "type": "qwen_image", "device": "default"}},
+        "4": {"class_type": "VAELoader",
+              "inputs": {"vae_name": "qwen_image_2.1_vae_bf16.safetensors"}},
+        "9": {"class_type": "ImagePadForOutpaint",
+              "inputs": {"image": ["1", 0], "left": int(left), "top": int(top),
+                         "right": int(right), "bottom": int(bottom),
+                         "feathering": int(feathering)}},
+        "8": {"class_type": "VAEEncode",
+              "inputs": {"pixels": ["9", 0], "vae": ["4", 0]}},
+        "11": {"class_type": "SetLatentNoiseMask",
+               "inputs": {"samples": ["8", 0], "mask": ["9", 1]}},
+        "5": {"class_type": "TextEncodeQwenImage21",
+              "inputs": {"clip": ["3", 0], "prompt": prompt, "negative_prompt": negative,
+                         "vae": ["4", 0], "resolution": 0,
+                         "images": {"image_1": ["9", 0]}}},
+        "6": {"class_type": "KSampler",
+              "inputs": {"seed": int(seed), "steps": max(1, min(int(steps), 30)), "cfg": 1.0,
+                         "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
+                         "model": ["2", 0], "positive": ["5", 0], "negative": ["5", 1],
+                         "latent_image": ["11", 0]}},
+        "7": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["4", 0]}},
+        "10": {"class_type": "SaveImage",
+               "inputs": {"images": ["7", 0], "filename_prefix": "outpaint"}},
+    }
+
+
+def photo_outpaint(input_path: str, output: str = "", prompt: str = "",
+                   left: int = 256, top: int = 256, right: int = 256,
+                   bottom: int = 256, feathering: int = 64,
+                   steps: int = 8, seed: int = 0, poll_timeout: int = 1800) -> str:
+    """Дополнение оторванных/обрезанных краёв фото (Qwen-Image 2.1 Edit через
+    ComfyUI :8188). Поля задаются в пикселях (кратно 8); исходная часть
+    сохраняется через SetLatentNoiseMask. Без prompt — универсальный текст."""
+    src = Path(input_path).expanduser()
+    if not src.exists():
+        return f"⛔ Не найдено: {src}"
+    text = (prompt or "").strip() or QWEN_EDIT_PROMPTS["outpaint"]
+    name = _comfy_input_file(src)
+    err, outs = _comfy_run(_qwen_outpaint_graph(name, text, "", left, top, right,
+                                                bottom, feathering, steps, seed),
+                           int(poll_timeout))
+    if err:
+        return err
+    return _comfy_save(outs, output, "outpaint")
+
+
 # ============================================================ мини-агент
 
 AGENT_SYSTEM = (
@@ -1070,6 +1132,11 @@ def _tool_specs() -> list:
              {"input_path": s_str, "output": s_str, "mode": s_str, "prompt": s_str,
               "steps": s_int, "seed": s_int, "resolution": s_int, "poll_timeout": s_int},
              ["input_path"]),
+        spec("photo_outpaint", "Дополнение оторванных/обрезанных краёв фото (Qwen-Edit через ComfyUI, поля в пикселях кратно 8). Медленно (GPU)",
+             {"input_path": s_str, "output": s_str, "prompt": s_str,
+              "left": s_int, "top": s_int, "right": s_int, "bottom": s_int,
+              "feathering": s_int, "steps": s_int, "seed": s_int, "poll_timeout": s_int},
+             ["input_path"]),
     ]
 
 
@@ -1112,6 +1179,8 @@ def _dispatch(name: str, args: dict) -> str:
             return photo_restore_comfy(**args)
         if name == "photo_colorize":
             return photo_colorize(**args)
+        if name == "photo_outpaint":
+            return photo_outpaint(**args)
         # swarm-инструменты (web/glm/stt/image) — делегируем в модуль swarm_tools
         try:
             import swarm_tools as _sw

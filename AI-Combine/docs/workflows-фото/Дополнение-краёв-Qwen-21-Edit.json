@@ -1,6 +1,6 @@
 {
- "last_node_id": 10,
- "last_link_id": 13,
+ "last_node_id": 11,
+ "last_link_id": 16,
  "nodes": [
   {
    "id": 1,
@@ -168,6 +168,13 @@
      "links": [
       5
      ]
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": [
+      15
+     ]
     }
    ],
    "properties": {
@@ -212,7 +219,7 @@
      "name": "LATENT",
      "type": "LATENT",
      "links": [
-      11
+      14
      ]
     }
    ],
@@ -317,7 +324,7 @@
     {
      "name": "latent_image",
      "type": "LATENT",
-     "link": 11
+     "link": 16
     }
    ],
    "outputs": [
@@ -409,6 +416,45 @@
    "widgets_values": [
     "qwen21_outpaint"
    ]
+  },
+  {
+   "id": 11,
+   "type": "SetLatentNoiseMask",
+   "pos": [
+    560,
+    420
+   ],
+   "size": {
+    "0": 320,
+    "1": 78
+   },
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "samples",
+     "type": "LATENT",
+     "link": 14
+    },
+    {
+     "name": "mask",
+     "type": "MASK",
+     "link": 15
+    }
+   ],
+   "outputs": [
+    {
+     "name": "LATENT",
+     "type": "LATENT",
+     "links": [
+      16
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "SetLatentNoiseMask"
+   }
   }
  ],
  "links": [
@@ -461,14 +507,6 @@
    "VAE"
   ],
   [
-   11,
-   8,
-   0,
-   6,
-   3,
-   "LATENT"
-  ],
-  [
    6,
    5,
    0,
@@ -507,6 +545,30 @@
    10,
    0,
    "IMAGE"
+  ],
+  [
+   14,
+   8,
+   0,
+   11,
+   0,
+   "LATENT"
+  ],
+  [
+   15,
+   9,
+   1,
+   11,
+   1,
+   "MASK"
+  ],
+  [
+   16,
+   11,
+   0,
+   6,
+   3,
+   "LATENT"
   ]
  ],
  "groups": [],

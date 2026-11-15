@@ -107,6 +107,70 @@ Encode, промпт по-русски. GoogleTranslateNode не работае�
 Custom-Scripts (pythongosssss) — тоже стоит (автокомплит/ShowText), перевода
 в нём нет. Qwen-Image русский понимает нативно — перевод для FLUX/Wan/Z-Image.
 
+## Реставрация и раскраска фото (15.11)
+
+Что это: фотография проходит цепочку из 4 ступеней — быстрая чистка →
+ИИ-реставрация царапин и лиц → детализация → раскраска/правки промптом.
+
+### Для человека (ComfyUI UI и чат WebUI)
+
+**Инструкция:**
+1. Открой ComfyUI (http://127.0.0.1:8188) и в меню Workflow загрузи нужный
+   сценарий из `ComfyUI/user/default/workflows/`:
+   - «Реставрация-старых-фото-BOPBTL» — царапины, шум, потёртости + лица;
+   - «Раскраска-и-реставрация-Qwen-21-Edit» — раскрасить ч/б или убрать
+     повреждения промптом;
+   - «Дополнение-краёв-Qwen-21-Edit» — дорисовать оторванные края (outpaint);
+   - «SeedVR2-детализация-фото» — вернуть мелкие детали и резкость.
+2. В ноде Load Image нажми «choose file to upload» и выбери фото.
+3. Проверь текст промпта (можно писать по-русски), нажми Run.
+4. Результат — в папке `ComfyUI/output/` (SaveImage).
+
+**Пример:** в чате WebUI (модель qwen3.5-9b-instruct, тулсет local-tools)
+просто напиши: «Отреставрируй /home/rover/Фото/1950.jpg — убери царапины и
+улучши лица, потом раскрась». Модель сама вызовет `photo_restore_comfy`,
+затем `photo_colorize`, и вернёт путь к готовым файлам.
+
+**Пояснение:** быстрая чистка (обрезка, поворот, шум) — тул `photo_fix`,
+он не использует нейросети и почти не занимает видеокарту; тяжёлые ступени
+(BOPBTL, SeedVR2, Qwen-Edit) требуют запущенного ComfyUI и свободной VRAM —
+LLM-рой выгружай перед генерацией («последний запущенный получает память»).
+
+### Для ИИ (API: MCP :8089 и ComfyUI :8188)
+
+**Инструкция:** два MCP-тула на сервере local-tools (`http://127.0.0.1:8089/mcp`):
+- `photo_restore_comfy(input_path, output?, mode="scratch"|"quality",
+  face_enhance=true, scale=1|2|4)` — BOPBTL: царапины+качество, лица,
+  апскейл 4x-UltraSharp;
+- `photo_colorize(input_path, output?, mode="colorize"|"restore"|"edit",
+  prompt?, steps=8, seed=0, resolution=1024)` — Qwen-Image 2.1 Turbo Edit:
+  раскраска, реставрация промптом, любые правки своим текстом.
+Результат: `~/Pictures/comfy/<время>_<prefix>.png` или путь из `output`.
+
+**Пример:**
+```bash
+# вызов тула через MCP (сокращённо; полный handshake: initialize → initialized → tools/call)
+curl -s http://127.0.0.1:8089/mcp -H 'mcp-session-id: <SID>' \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
+       "name":"photo_colorize","arguments":{"input_path":"/tmp/старое.jpg",
+       "mode":"colorize","steps":8}}}'
+# прямой граф в ComfyUI: POST http://127.0.0.1:8188/prompt {"prompt": {...}}
+# ключ edit-энкода: TextEncodeQwenImage21 → "images": {"image_1": ["1", 0]}
+```
+
+**Пояснение:** референс-картинка для Qwen-Edit подаётся в autogrow-поле
+`images` **словарём** (`{"image_1": [node,slot]}`) — строкой `image_1` не
+работает; латент у этой ноды пустой (размер = референс), поэтому denoise 1.0.
+pe_i2i-энкодер — это промпт-энхансер, НЕ conditioning. BOPBTL-модели лежат в
+подпапках (`models/checkpoints/restoration/mapping_scratch/latest_net_mapping_net.pth`)
+— при переносе не складывать плоско: все файлы называются `latest_net_*.pth`
+и перезапишут друг друга. Физика моделей — в официальных папках
+`ComfyUI/models/` (политика 15.11), `AI-Models/` держит симлинки-алиасы для
+скриптов. Workflows: канонично `ComfyUI/user/default/workflows/` (ComfyUI
+читает оттуда; это вложенный git-репо — в комбайн не коммитится), копии для
+git — `docs/workflows-фото/`, при правках синхронизировать. Бэкап правок
+mcp_server.py: `Sys_Backup/photo-restoration-20261115/`.
+
 ## Откат
 
 `gio trash ~/AI-Combine/ComfyUI` + убрать блок 5.1 из start_ai.sh (бэкап

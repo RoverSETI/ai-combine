@@ -1,0 +1,425 @@
+{
+ "last_node_id": 9,
+ "last_link_id": 9,
+ "nodes": [
+  {
+   "id": 1,
+   "type": "LoadImage",
+   "pos": [
+    -450,
+    0
+   ],
+   "size": {
+    "0": 320,
+    "1": 150
+   },
+   "flags": {},
+   "order": 0,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "name": "IMAGE",
+     "type": "IMAGE",
+     "links": [
+      1
+     ]
+    },
+    {
+     "name": "MASK",
+     "type": "MASK",
+     "links": []
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "LoadImage"
+   },
+   "widgets_values": [
+    "фото.png",
+    "image"
+   ]
+  },
+  {
+   "id": 2,
+   "type": "BOPBTL_LoadScratchMaskModel",
+   "pos": [
+    -450,
+    -280
+   ],
+   "size": {
+    "0": 320,
+    "1": 150
+   },
+   "flags": {},
+   "order": 1,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "scratch_model",
+     "type": "SCRATCH_MODEL",
+     "links": [
+      2
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "BOPBTL_LoadScratchMaskModel"
+   },
+   "widgets_values": [
+    "detection/FT_Epoch_latest.pt"
+   ]
+  },
+  {
+   "id": 3,
+   "type": "BOPBTL_ScratchMask",
+   "pos": [
+    -60,
+    -80
+   ],
+   "size": {
+    "0": 320,
+    "1": 150
+   },
+   "flags": {},
+   "order": 2,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "scratch_model",
+     "type": "SCRATCH_MODEL",
+     "link": 2
+    },
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 1
+    }
+   ],
+   "outputs": [
+    {
+     "name": "mask",
+     "type": "MASK",
+     "links": [
+      4
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "BOPBTL_ScratchMask"
+   },
+   "widgets_values": [
+    "full_size",
+    "bilinear"
+   ]
+  },
+  {
+   "id": 4,
+   "type": "BOPBTL_LoadRestoreOldPhotosModel",
+   "pos": [
+    -450,
+    260
+   ],
+   "size": {
+    "0": 320,
+    "1": 150
+   },
+   "flags": {},
+   "order": 3,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "bopbtl_models",
+     "type": "BOPBTL_MODELS",
+     "links": [
+      5
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "BOPBTL_LoadRestoreOldPhotosModel"
+   },
+   "widgets_values": [
+    "0",
+    "True",
+    "False",
+    "restoration/mapping_scratch/latest_net_mapping_net.pth",
+    "restoration/VAE_B_scratch/latest_net_G.pth",
+    "restoration/VAE_A_quality/latest_net_G.pth"
+   ]
+  },
+  {
+   "id": 5,
+   "type": "BOPBTL_RestoreOldPhotos",
+   "pos": [
+    320,
+    0
+   ],
+   "size": {
+    "0": 320,
+    "1": 150
+   },
+   "flags": {},
+   "order": 4,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "bopbtl_models",
+     "type": "BOPBTL_MODELS",
+     "link": 5
+    },
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 3
+    },
+    {
+     "name": "scratch_mask",
+     "type": "MASK",
+     "link": 4,
+     "shape": 7
+    }
+   ],
+   "outputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "links": [
+      6
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "BOPBTL_RestoreOldPhotos"
+   },
+   "widgets_values": [
+    "edge",
+    0,
+    "even"
+   ]
+  },
+  {
+   "id": 6,
+   "type": "BOPBTL_LoadFaceDetectorModel",
+   "pos": [
+    -450,
+    560
+   ],
+   "size": {
+    "0": 320,
+    "1": 150
+   },
+   "flags": {},
+   "order": 5,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "dlib_model",
+     "type": "DLIB_MODEL",
+     "links": [
+      7
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "BOPBTL_LoadFaceDetectorModel"
+   },
+   "widgets_values": [
+    "shape_predictor_68_face_landmarks.dat"
+   ]
+  },
+  {
+   "id": 7,
+   "type": "BOPBTL_LoadFaceEnhancerModel",
+   "pos": [
+    -450,
+    760
+   ],
+   "size": {
+    "0": 320,
+    "1": 150
+   },
+   "flags": {},
+   "order": 6,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [
+    {
+     "name": "face_enhance_model",
+     "type": "FACE_ENHANCE_MODEL",
+     "links": [
+      8
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "BOPBTL_LoadFaceEnhancerModel"
+   },
+   "widgets_values": [
+    "0",
+    "face/Setting_9_epoch_100/latest_net_G.pth",
+    "256"
+   ]
+  },
+  {
+   "id": 8,
+   "type": "BOPBTL_DetectEnhanceBlendFaces",
+   "pos": [
+    700,
+    0
+   ],
+   "size": {
+    "0": 320,
+    "1": 150
+   },
+   "flags": {},
+   "order": 7,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "dlib_model",
+     "type": "DLIB_MODEL",
+     "link": 7
+    },
+    {
+     "name": "face_enhance_model",
+     "type": "FACE_ENHANCE_MODEL",
+     "link": 8
+    },
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "link": 6
+    }
+   ],
+   "outputs": [
+    {
+     "name": "image",
+     "type": "IMAGE",
+     "links": [
+      9
+     ]
+    }
+   ],
+   "properties": {
+    "Node name for S&R": "BOPBTL_DetectEnhanceBlendFaces"
+   },
+   "widgets_values": []
+  },
+  {
+   "id": 9,
+   "type": "SaveImage",
+   "pos": [
+    1060,
+    0
+   ],
+   "size": {
+    "0": 320,
+    "1": 150
+   },
+   "flags": {},
+   "order": 8,
+   "mode": 0,
+   "inputs": [
+    {
+     "name": "images",
+     "type": "IMAGE",
+     "link": 9
+    }
+   ],
+   "outputs": [],
+   "properties": {
+    "Node name for S&R": "SaveImage"
+   },
+   "widgets_values": [
+    "bopbtl_restored"
+   ]
+  }
+ ],
+ "links": [
+  [
+   1,
+   1,
+   0,
+   3,
+   1,
+   "IMAGE"
+  ],
+  [
+   2,
+   2,
+   0,
+   3,
+   0,
+   "SCRATCH_MODEL"
+  ],
+  [
+   3,
+   1,
+   0,
+   5,
+   1,
+   "IMAGE"
+  ],
+  [
+   4,
+   3,
+   0,
+   5,
+   2,
+   "MASK"
+  ],
+  [
+   5,
+   4,
+   0,
+   5,
+   0,
+   "BOPBTL_MODELS"
+  ],
+  [
+   6,
+   5,
+   0,
+   8,
+   2,
+   "IMAGE"
+  ],
+  [
+   7,
+   6,
+   0,
+   8,
+   0,
+   "DLIB_MODEL"
+  ],
+  [
+   8,
+   7,
+   0,
+   8,
+   1,
+   "FACE_ENHANCE_MODEL"
+  ],
+  [
+   9,
+   8,
+   0,
+   9,
+   0,
+   "IMAGE"
+  ]
+ ],
+ "groups": [],
+ "config": {},
+ "extra": {},
+ "version": 0.4
+}

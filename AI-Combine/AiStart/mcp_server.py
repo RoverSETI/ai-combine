@@ -17,6 +17,7 @@ import json
 import math
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -72,6 +73,10 @@ mcp = MCPServer(
         "ask_kb — вопрос к базе знаний (конспекты Habr) с ходом решения. "
         "photo_fix — реставрация фото: обрезка, поворот, яркость/контраст, шум, "
         "удаление трещин (ИИ-заливка LaMa). Результат пишется в restored/ рядом с оригиналом. "
+        "photo_restore_comfy — глубокая ИИ-реставрация старых фото (BOPBTL: царапины, "
+        "шум, лица, апскейл UltraSharp; GPU, требует запущенный ComfyUI :8188). "
+        "photo_colorize — раскраска ч/б фото и реставрация промптом (Qwen-Image 2.1 Edit; "
+        "GPU, требует запущенный ComfyUI :8188). Результаты — в ~/Pictures/comfy или по output. "
         "agent_task — многошаговая задача: модель сама составляет план и выполняет его "
         "по шагам, вызывая эти же инструменты. "
         "АГЕНТЫ ПО СЛОЖНОСТИ (конфиг agents.json): ai_ask — один проход с авто-выбором "
@@ -763,6 +768,213 @@ def photo_fix(
     return json.dumps(report, ensure_ascii=False, indent=1)
 
 
+# ============================================================ ComfyUI: реставрация/раскраска фото
+
+COMFY = "http://127.0.0.1:8188"
+COMFY_INPUT = Path("/home/rover/AI-Combine/ComfyUI/input")
+COMFY_OUT = Path("/home/rover/Pictures/comfy")
+QWEN_EDIT_PROMPTS = {
+    "colorize": "Раскрась это чёрно-белое фото естественными правдоподобными цветами: "
+                "сохрани все детали, лица и композицию без изменений. Фотореалистично.",
+    "restore": "Отреставрируй это старое повреждённое фото: убери царапины, пятна, шум и "
+               "потёртости, восстанови детали и резкость. Сохрани лица и композицию без изменений.",
+    "outpaint": "Дополни это фото на пустых (чёрных) полях, естественно продолжив сцену: "
+                "фон, землю, небо, одежду. Сохрани исходную часть фото без изменений. Фотореалистично.",
+}
+
+
+def _comfy_input_file(src: Path) -> str:
+    """Скопировать файл в ComfyUI/input, вернуть имя для LoadImage."""
+    COMFY_INPUT.mkdir(parents=True, exist_ok=True)
+    dst = COMFY_INPUT / f"in_{os.getpid()}_{src.name}"
+    shutil.copy2(src, dst)
+    return dst.name
+
+
+def _comfy_run(graph: dict, poll_timeout: int = 1800) -> tuple[str, list[bytes]]:
+    """Отправить граф в ComfyUI и дождаться картинок. ('', [png-байты]) или ('⛔ текст', [])."""
+    import time as _t
+    try:
+        r = requests.post(f"{COMFY}/prompt", timeout=30, json={"prompt": graph})
+        r.raise_for_status()
+        pid = r.json().get("prompt_id", "")
+    except Exception as e:
+        return f"⛔ ComfyUI недоступен ({COMFY}): {e}", []
+    if not pid:
+        return "⛔ ComfyUI не вернул prompt_id", []
+    t0 = _t.time()
+    while _t.time() - t0 < poll_timeout:
+        _t.sleep(3)
+        try:
+            hist = requests.get(f"{COMFY}/history", timeout=30).json().get(pid) or {}
+        except Exception:
+            continue
+        if not hist:
+            continue
+        if hist.get("status", {}).get("status_str") == "error":
+            return "⛔ ComfyUI: " + json.dumps(hist["status"].get("messages", []))[:500], []
+        outs = []
+        for node_out in hist.get("outputs", {}).values():
+            for img in node_out.get("images", []):
+                rr = requests.get(f"{COMFY}/view", timeout=120, params={
+                    "filename": img["filename"], "subfolder": img.get("subfolder", ""),
+                    "type": img.get("type", "output")})
+                outs.append(rr.content)
+        if outs:
+            return "", outs
+    return f"⛔ ComfyUI: таймаут ожидания {poll_timeout} с", []
+
+
+def _comfy_save(outs: list[bytes], output: str, prefix: str) -> str:
+    """Сохранить png-байты; output — путь или папка; иначе ~/Pictures/comfy."""
+    from datetime import datetime
+    paths = []
+    if output:
+        o = Path(output).expanduser()
+        base_dir = o.parent if (o.suffix or len(outs) == 1) else o
+        base_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        base_dir = COMFY_OUT
+        base_dir.mkdir(parents=True, exist_ok=True)
+    stem = (Path(output).expanduser().stem if output else
+            datetime.now().strftime("%Y%m%d-%H%M%S") + "_" + prefix)
+    for i, data in enumerate(outs):
+        name = stem + (f"_{i}" if len(outs) > 1 else "") + ".png"
+        p = base_dir / name
+        p.write_bytes(data)
+        paths.append(str(p))
+    return "✅ сохранено: " + ", ".join(paths)
+
+
+def _bopbtl_graph(image_name: str, mode: str = "scratch",
+                  face_enhance: bool = True, scale: float = 1.0) -> dict:
+    """API-граф BOPBTL: царапины/качество + лица + (опц.) апскейл UltraSharp."""
+    g = {"1": {"class_type": "LoadImage", "inputs": {"image": image_name}}}
+    img = ["1", 0]
+    nid, mask = 2, None
+    if mode == "scratch":
+        g[str(nid)] = {"class_type": "BOPBTL_LoadScratchMaskModel",
+                       "inputs": {"scratch_model": "detection/FT_Epoch_latest.pt"}}
+        sm = [str(nid), 0]; nid += 1
+        g[str(nid)] = {"class_type": "BOPBTL_ScratchMask",
+                       "inputs": {"scratch_model": sm, "image": img,
+                                  "input_size": "full_size", "resize_method": "bilinear"}}
+        mask = [str(nid), 0]; nid += 1
+        mp = "restoration/mapping_scratch/latest_net_mapping_net.pth"
+        vb = "restoration/VAE_B_scratch/latest_net_G.pth"
+    else:
+        mp = "restoration/mapping_quality/latest_net_mapping_net.pth"
+        vb = "restoration/VAE_B_quality/latest_net_G.pth"
+    g[str(nid)] = {"class_type": "BOPBTL_LoadRestoreOldPhotosModel",
+                   "inputs": {"device_ids": "0",
+                              "scratch_detection": "True" if mode == "scratch" else "False",
+                              "mapping_patch_attention": "False", "mapping_net": mp,
+                              "vae_b": vb,
+                              "vae_a": "restoration/VAE_A_quality/latest_net_G.pth"}}
+    models = [str(nid), 0]; nid += 1
+    restore_in = {"bopbtl_models": models, "image": img,
+                  "pad_mode": "edge", "pad_constant_value": 0, "pad_reflect_type": "even"}
+    if mask:
+        restore_in["scratch_mask"] = mask
+    g[str(nid)] = {"class_type": "BOPBTL_RestoreOldPhotos", "inputs": restore_in}
+    img = [str(nid), 0]; nid += 1
+    if face_enhance:
+        g[str(nid)] = {"class_type": "BOPBTL_LoadFaceDetectorModel",
+                       "inputs": {"shape_predictor_68_face_landmarks":
+                                      "shape_predictor_68_face_landmarks.dat"}}
+        dl = [str(nid), 0]; nid += 1
+        g[str(nid)] = {"class_type": "BOPBTL_LoadFaceEnhancerModel",
+                       "inputs": {"device_ids": "0",
+                                  "face_enhance_model": "face/Setting_9_epoch_100/latest_net_G.pth",
+                                  "model_face_size": "256"}}
+        fe = [str(nid), 0]; nid += 1
+        g[str(nid)] = {"class_type": "BOPBTL_DetectEnhanceBlendFaces",
+                       "inputs": {"dlib_model": dl, "face_enhance_model": fe, "image": img}}
+        img = [str(nid), 0]; nid += 1
+    if scale and scale != 1.0:
+        g[str(nid)] = {"class_type": "UpscaleModelLoader",
+                       "inputs": {"model_name": "4x-UltraSharp.pth"}}
+        um = [str(nid), 0]; nid += 1
+        g[str(nid)] = {"class_type": "ImageUpscaleWithModel",
+                       "inputs": {"upscale_model": um, "image": img}}
+        img = [str(nid), 0]; nid += 1
+        if scale != 4.0:
+            g[str(nid)] = {"class_type": "ImageScaleBy",
+                           "inputs": {"image": img, "scale_by": scale / 4.0,
+                                      "upscale_method": "lanczos"}}
+            img = [str(nid), 0]; nid += 1
+    g[str(nid)] = {"class_type": "SaveImage",
+                   "inputs": {"images": img, "filename_prefix": "restored"}}
+    return g
+
+
+def photo_restore_comfy(input_path: str, output: str = "", mode: str = "scratch",
+                        face_enhance: bool = True, scale: float = 1.0,
+                        poll_timeout: int = 1800) -> str:
+    """ИИ-реставрация старых фото (BOPBTL через ComfyUI :8188): царапины, шум,
+    потёртости + улучшение лиц (dlib+GAN) + (опц.) апскейл 4x-UltraSharp.
+    Тяжёлый вариант; для быстрой чистки без VRAM см. photo_fix."""
+    src = Path(input_path).expanduser()
+    if not src.exists():
+        return f"⛔ Не найдено: {src}"
+    if mode not in ("scratch", "quality"):
+        return "⛔ mode: scratch (царапины+качество) | quality (только качество)"
+    name = _comfy_input_file(src)
+    err, outs = _comfy_run(_bopbtl_graph(name, mode, bool(face_enhance), float(scale)),
+                           int(poll_timeout))
+    if err:
+        return err
+    return _comfy_save(outs, output, "restored")
+
+
+def _qwen_edit_graph(image_name: str, prompt: str, negative: str = "",
+                     steps: int = 8, seed: int = 0, resolution: int = 1024) -> dict:
+    """API-граф Qwen-Image 2.1 Turbo Edit: раскраска/реставрация/правки по промпту."""
+    return {
+        "1": {"class_type": "LoadImage", "inputs": {"image": image_name}},
+        "2": {"class_type": "UNETLoader",
+              "inputs": {"unet_name": "qwen_image_2.1_turbo_int8_convrot.safetensors",
+                         "weight_dtype": "default"}},
+        "3": {"class_type": "CLIPLoader",
+              "inputs": {"clip_name": "qwen3vl_8b_int8_convrot.safetensors",
+                         "type": "qwen_image", "device": "default"}},
+        "4": {"class_type": "VAELoader",
+              "inputs": {"vae_name": "qwen_image_2.1_vae_bf16.safetensors"}},
+        "5": {"class_type": "TextEncodeQwenImage21",
+              "inputs": {"clip": ["3", 0], "prompt": prompt, "negative_prompt": negative,
+                         "vae": ["4", 0], "resolution": int(resolution),
+                         "images": {"image_1": ["1", 0]}}},
+        "6": {"class_type": "KSampler",
+              "inputs": {"seed": int(seed), "steps": max(1, min(int(steps), 30)), "cfg": 1.0,
+                         "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
+                         "model": ["2", 0], "positive": ["5", 0], "negative": ["5", 1],
+                         "latent_image": ["5", 2]}},
+        "7": {"class_type": "VAEDecode", "inputs": {"samples": ["6", 0], "vae": ["4", 0]}},
+        "8": {"class_type": "SaveImage",
+              "inputs": {"images": ["7", 0], "filename_prefix": "photo_edit"}},
+    }
+
+
+def photo_colorize(input_path: str, output: str = "", mode: str = "colorize",
+                   prompt: str = "", steps: int = 8, seed: int = 0,
+                   resolution: int = 1024, poll_timeout: int = 1800) -> str:
+    """Раскраска ч/б фото и ИИ-реставрация промптом (Qwen-Image 2.1 Edit через ComfyUI).
+    mode: colorize | restore | edit (edit — свой текст в prompt, по-русски).
+    prompt переопределяет дефолт-промпт режима."""
+    src = Path(input_path).expanduser()
+    if not src.exists():
+        return f"⛔ Не найдено: {src}"
+    if mode not in QWEN_EDIT_PROMPTS:
+        return "⛔ mode: colorize | restore | edit"
+    text = (prompt or "").strip() or QWEN_EDIT_PROMPTS[mode]
+    name = _comfy_input_file(src)
+    err, outs = _comfy_run(_qwen_edit_graph(name, text, "", steps, seed, resolution),
+                           int(poll_timeout))
+    if err:
+        return err
+    return _comfy_save(outs, output, mode)
+
+
 # ============================================================ мини-агент
 
 AGENT_SYSTEM = (
@@ -850,6 +1062,14 @@ def _tool_specs() -> list:
               "denoise": s_str, "fix_cracks": s_str, "mask": s_str,
               "brightness": s_num, "contrast": s_num, "gamma": s_num,
               "scale": s_num, "dry_run": s_bool}, ["input_path"]),
+        spec("photo_restore_comfy", "ИИ-реставрация старых фото (BOPBTL через ComfyUI): царапины, шум, потёртости, улучшение лиц, апскейл. Медленно (GPU)",
+             {"input_path": s_str, "output": s_str, "mode": s_str,
+              "face_enhance": s_bool, "scale": s_num, "poll_timeout": s_int},
+             ["input_path"]),
+        spec("photo_colorize", "Раскраска ч/б фото / ИИ-реставрация промптом (Qwen-Image 2.1 Edit через ComfyUI). Медленно (GPU)",
+             {"input_path": s_str, "output": s_str, "mode": s_str, "prompt": s_str,
+              "steps": s_int, "seed": s_int, "resolution": s_int, "poll_timeout": s_int},
+             ["input_path"]),
     ]
 
 
@@ -888,6 +1108,10 @@ def _dispatch(name: str, args: dict) -> str:
             return ask_kb(**args)
         if name == "photo_fix":
             return photo_fix(**args)
+        if name == "photo_restore_comfy":
+            return photo_restore_comfy(**args)
+        if name == "photo_colorize":
+            return photo_colorize(**args)
         # swarm-инструменты (web/glm/stt/image) — делегируем в модуль swarm_tools
         try:
             import swarm_tools as _sw

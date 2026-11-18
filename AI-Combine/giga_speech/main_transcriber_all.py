@@ -1,9 +1,7 @@
 import os
 import sys
 import time
-import subprocess
 import queue
-import socket
 import torch
 import torchaudio
 from transformers import AutoModel, AutoConfig
@@ -14,65 +12,27 @@ import requests
 from datetime import datetime
 
 # ==================== КОНФИГУРАЦИЯ СИСТЕМЫ ====================
-MODEL_PATH = "Qwen2.5-7B-Instruct-Q8_0.gguf"
-CONTEXT_SIZE = 4096  
-GRID_LAYERS = 99     
+# Редактура идёт через общий роутер llama-server (start_ai.sh, :8081):
+# свой llama-server больше не поднимается — экономит VRAM и не конфликтует
+# с Open WebUI за порт 8080.
+ROUTER_MODEL = "qwen3.5-9b-instruct"
 
 LOG_FILE = "transcription_log.txt"
 MD_FILE = "formatted_session.md"
-LLM_URL = "http://localhost:8080/v1/chat/completions"
+LLM_URL = "http://localhost:8081/v1/chat/completions"
 
 LLM_PROMPT = """Ты — опытный редактор русского текста. Тебе приходит сырая транскрипция устной речи.
 Сделай следующее:
 1. Исправь орфографию, грамматику и пунктуацию.
 2. Убери слова-паразиты, заикания и повторы.
-3. Разбей текст на логичные абзацы.
-4. Сохрани изначальный смысл и стиль автора.
-5. Верни ТОЛЬКО Markdown без твоих комментариев и вступлений."""
+3. ВЫДЕЛИ СПИКЕРОВ ДИАЛОГА по смыслу (обращения, вопрос-ответ, смена темы): оформи реплики как **Спикер 1:**, **Спикер 2:** и т.д. Если текст монолог — один спикер.
+4. Разбей текст на логичные абзацы.
+5. Сохрани изначальный смысл и стиль автора.
+6. Верни ТОЛЬКО Markdown без твоих комментариев и вступлений."""
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
-llama_process = None
 
 # ==================== УПРАВЛЕНИЕ СЕРВЕРОМ И ИИ ====================
-def start_llama_server():
-    global llama_process
-    if llama_process is not None:
-        return
-        
-    if not os.path.exists(MODEL_PATH):
-        print(f"[❌] ОШИБКА: Файл '{MODEL_PATH}' не найден!"); sys.exit(1)
-        
-    print(f"[🤖] Запуск редактора Qwen на GPU...")
-    # ФИКС: Заменили невалидный '--ngl' на поддерживаемый короткий флаг '-ngl'
-    cmd = ["/usr/bin/llama-server", "-m", MODEL_PATH, "-c", str(CONTEXT_SIZE), "-ngl", str(GRID_LAYERS), "--port", "8080"]
-    
-    try:
-        # Снова прячем вывод в DEVNULL, так как аргументы теперь 100% верны
-        llama_process = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
-        start_time = time.time()
-        port_ready = False
-        while time.time() - start_time < 20:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                sock.settimeout(0.5)
-                if sock.connect_ex(("localhost", 8080)) == 0:
-                    port_ready = True
-                    break
-            time.sleep(0.5)
-            
-        if port_ready:
-            print("[🟢] Текстовый ИИ Qwen успешно подключен и начал редактуру.")
-        else:
-            print("[❌] Ошибка: Сервер не смог запуститься на порту 8080.")
-    except Exception as e:
-        print(f"[❌] Ошибка старта сервера: {e}"); sys.exit(1)
-
-def stop_llama_server():
-    global llama_process
-    if llama_process:
-        llama_process.terminate()
-        llama_process.wait()
-        llama_process = None
 def load_asr_model():
     print(f"[INFO] Стек PyTorch: {device}\n[INFO] Загрузка модели Сбера GigaAM-v3...")
     torch.nn.Module.all_tied_weights_keys = property(lambda self: {})
@@ -95,16 +55,13 @@ def load_asr_model():
     return model.to(device)
 
 def send_to_llm_editor(raw_text):
-    start_llama_server()
-    payload = {"messages": [{"role": "system", "content": LLM_PROMPT}, {"role": "user", "content": raw_text}], "temperature": 0.2, "stream": False}
+    payload = {"model": ROUTER_MODEL, "messages": [{"role": "system", "content": LLM_PROMPT}, {"role": "user", "content": raw_text}], "temperature": 0.2, "stream": False}
     try:
         res = requests.post(LLM_URL, json=payload, timeout=120)
-        if res.status_code == 200: 
-            return res.json()['choices']['message']['content'].strip()
+        if res.status_code == 200:
+            return res.json()['choices'][0]['message']['content'].strip()
     except Exception as e: 
         print(f"\n[⚠️ Ошибка ИИ]: Не удалось отредактировать текст. Тех. инфо: {e}")
-    finally:
-        stop_llama_server()
     return raw_text
 
 # ==================== РЕЖИМЫ ТРАНСКРИБАЦИИ ====================
@@ -221,5 +178,4 @@ if __name__ == "__main__":
             run_live_microphone(asr_engine)
         else: print("[❌] Ошибка: Неверный режим.")
     finally:
-        stop_llama_server()
-        print("[👋] Видеопамять полностью очищена.")
+        print("[👋] Редактура через роутер :8081 — отдельный llama-server не запускался.")

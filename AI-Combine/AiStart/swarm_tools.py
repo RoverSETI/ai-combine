@@ -90,35 +90,21 @@ def _glm_budget() -> tuple:
 
 
 def _glm_key() -> str:
-    # Приоритет: ~/AiStart/ZaiKey (GLM 5.3, z.ai start-plan), затем старый polza-ключ.
-    zai_key_file = AISTART / 'ZaiKey'
-    f = zai_key_file if zai_key_file.is_file() else GLM_KEY_FILE
-    lines = f.read_text(encoding='utf-8').strip().splitlines()
+    lines = GLM_KEY_FILE.read_text(encoding='utf-8').strip().splitlines()
     key = lines[0].strip() if lines else ''
-    # Файл может содержать ключ + русскую пометку после него: HTTP-заголовок
-    # принимает только latin-1, поэтому берём первый токен (сам ключ).
-    key = key.split()[0] if key else ''
     if not key:
-        raise ValueError('ключ GLM пуст (' + f.name + ')')
+        raise ValueError('ключ GLM пуст')
     return key
-
-
-def _glm_endpoint_and_model():
-    """Endpoint и модель: если есть ZaiKey — z.ai coding-plan, иначе polza (legacy)."""
-    if (AISTART / 'ZaiKey').is_file():
-        return ('https://api.z.ai/api/coding/paas/v4/chat/completions', 'glm-5.3')
-    return (GLM_ENDPOINT, GLM_MODEL)
 
 
 def _glm_call(messages, max_tokens):
     ok, note = _glm_budget()
     if not ok:
         return '⛔ GLM: ' + note
-    endpoint, model = _glm_endpoint_and_model()
     r = requests.post(
-        endpoint,
+        GLM_ENDPOINT,
         headers={'Authorization': 'Bearer ' + _glm_key(), 'Content-Type': 'application/json'},
-        json={'model': model, 'messages': messages, 'max_tokens': max_tokens, 'stream': False},
+        json={'model': GLM_MODEL, 'messages': messages, 'max_tokens': max_tokens, 'stream': False},
         timeout=180,
     )
     r.raise_for_status()
@@ -287,16 +273,31 @@ GIGA_DIR = '/home/rover/giga_speech'
 GIGA_SCRIPT = GIGA_DIR + '/stt_model.py'
 
 
+STT_PROMPT = (
+    'Ты — редактор стенограмм устной речи на русском. Тебе дан сырой текст распознавания.' + chr(10) +
+    'Сделай следующее:' + chr(10) +
+    '1. Исправь орфографию, грамматику и пунктуацию.' + chr(10) +
+    '2. Убери слова-паразиты, заикания и повторы.' + chr(10) +
+    '3. ВЫДЕЛИ СПИКЕРОВ ДИАЛОГА по смыслу (обращения, вопрос-ответ, смена темы): оформи реплики как **Спикер 1:**, **Спикер 2:** и т.д. Если текст монолог — один спикер.' + chr(10) +
+    '4. Разбей на логичные абзацы.' + chr(10) +
+    '5. Сохрани изначальный смысл и стиль автора.' + chr(10) +
+    '6. Верни ТОЛЬКО готовый Markdown без твоих комментариев и вступлений.'
+)
+
+
 @mcp.tool()
 def stt_transcribe(path: str, clean: bool = False) -> str:
-    """Транскрибация аудиофайла локально (GigaAM-v3, русский).
+    """Транскрибация аудиофайла локально (GigaAM-v3, русский) + редактура через hard (qwen3.5-9b).
 
+    Пайплайн: GigaAM распознаёт текст → hard-модель исправляет орфографию,
+    выделяет спикеров диалога по смыслу и оформляет Markdown → результат
+    сохраняется в <имя_аудио>.md рядом с файлом и возвращается в чат.
     При первом запуске скачивает веса модели (~1-2 ГБ). Перед запуском
     агент должен освободить VRAM: ai_unload all.
 
     Args:
         path: путь к файлу wav/mp3/ogg/m4a
-        clean: True — дополнительно вычистить текст (медленнее)
+        clean: устарел, редактура выполняется всегда (оставлен для совместимости)
     """
     p = Path(path).expanduser()
     if not p.exists():
@@ -310,18 +311,29 @@ def stt_transcribe(path: str, clean: bool = False) -> str:
         out = (r.stdout or '').strip()
         if r.returncode != 0:
             return '⛔ stt: ' + (r.stderr or out)[-500:]
-        if clean:
-            try:
-                from mcp_server import _chat_once
-                from mcp_server import _agents_cfg
-                role = _agents_cfg()['roles']['medium']
-                msg = _chat_once(role, [{'role': 'user', 'content': 'Вычисти текст от паразитов и заиканий, сохрани смысл, верни только текст:' + chr(10) + out[-6000:]}], use_tools=False)
-                cleaned = (msg.get('content') or '').strip()
-                if cleaned:
-                    out = out + chr(10) + chr(10) + '--- вычищенная версия ---' + chr(10) + cleaned
-            except Exception:
-                pass  # fallback: сырая транскрипция
-        return out
+        md_text = ''
+        try:
+            from mcp_server import _chat_once
+            from mcp_server import _agents_cfg
+            role = dict(_agents_cfg()['roles']['hard'])
+            role['max_tokens'] = 4000  # длинные транскрипции не должны обрезаться
+            msg = _chat_once(role, [
+                {'role': 'system', 'content': STT_PROMPT},
+                {'role': 'user', 'content': out[-12000:]}], use_tools=False)
+            md_text = (msg.get('content') or '').strip()
+        except Exception:
+            pass  # fallback: сырая транскрипция
+        if not md_text:
+            md_text = out
+        header = '# Транскрипция: ' + p.name + chr(10) + chr(10)
+        final_md = header + md_text + chr(10)
+        try:
+            md_path = p.with_suffix('.md')
+            md_path.write_text(final_md, encoding='utf-8')
+            note = chr(10) + chr(10) + '---' + chr(10) + '💾 Сохранено: ' + str(md_path)
+        except Exception as e:
+            note = chr(10) + chr(10) + '---' + chr(10) + '⚠️ md не сохранён: ' + str(e)
+        return final_md + note
     except subprocess.TimeoutExpired:
         return '⛔ stt: таймаут 30 минут'
     except Exception as e:
@@ -382,25 +394,11 @@ IMG_OUT_DIR = '/home/rover/Pictures/swarm'
 
 
 def _post_fixed(url: str, payload: dict, headers: dict, timeout: int) -> dict:
-    """POST строго на разрешённый URL (allowlist) — защита от SSRF.
-
-    Разрешены: единственный loopback-эндпоинт роутера и https-домены
-    GLM-облака из фиксированного списка. Редиректы запрещены, реквизиты
-    в URL запрещены.
-    """
-    parsed = urllib.parse.urlsplit(url)
-    allowed_hosts = {'api.z.ai', 'api.polza.ai'}
-    ok = (
-        (parsed.scheme == 'http' and parsed.netloc == '127.0.0.1:8081'
-         and parsed.path == '/v1/chat/completions')
-        or (parsed.scheme == 'https'
-            and parsed.hostname in allowed_hosts
-            and not parsed.username and not parsed.password)
-    )
-    if not ok:
+    """POST строго на разрешённый URL (allowlist) — защита от SSRF."""
+    ALLOWED = ('http://127.0.0.1:8081/v1/chat/completions', GLM_ENDPOINT)
+    if url not in ALLOWED:
         raise ValueError('запрещённый URL: ' + url)
-    r = requests.post(url, json=payload, headers=headers, timeout=timeout,
-                      allow_redirects=False)
+    r = requests.post(url, json=payload, headers=headers, timeout=timeout)
     r.raise_for_status()
     return r.json()
 
@@ -433,10 +431,10 @@ def image_describe(path: str, question: str = 'Подробно опиши из�
 
 @mcp.tool()
 def image_generate(prompt: str, output: str = '', width: int = 512, height: int = 512, steps: int = 4) -> str:
-    """Нарисовать картинку ЛОКАЛЬНО: FLUX через ComfyUI (:8188), фолбэк — stable-diffusion.cpp.
+    """Нарисовать картинку ЛОКАЛЬНО: FLUX.1-schnell через stable-diffusion.cpp.
 
-    Сам освобождает VRAM: если модели роутера заняли память — выгружает их;
-    модель агента WebUI вернётся автоматически на следующем шаге цикла.
+    Если свободно меньше 5 ГБ VRAM — инструмент откажет и подскажет вызвать
+    ai_unload all (LLM занимает ~10 ГБ).
 
     Args:
         prompt: описание картинки (лучше на английском)
@@ -457,63 +455,21 @@ def image_generate(prompt: str, output: str = '', width: int = 512, height: int 
     except Exception:
         free_mb = -1
     if free_mb != -1 and free_mb < 5000:
-        # инструмент сам освобождает VRAM: выгружаем загруженные модели роутера;
-        # модель агента WebUI роутер вернёт автоматически на следующем шаге цикла
-        n = 0
-        try:
-            r = requests.get('http://127.0.0.1:8081/v1/models', timeout=10)
-            models = r.json().get('data', [])
-        except Exception:
-            models = []
-        for m in models:
-            if (m.get('status') or {}).get('value') == 'loaded':
-                try:
-                    requests.post('http://127.0.0.1:8081/models/unload',
-                                  json={'model': m.get('id')}, timeout=60)
-                    n += 1
-                except Exception:
-                    pass
-        for _ in range(10):
-            time.sleep(1.5)
-            try:
-                free = subprocess.run(['nvidia-smi', '--query-gpu=memory.free',
-                                       '--format=csv,noheader,nounits'],
-                                      capture_output=True, text=True, timeout=10)
-                free_mb = int(free.stdout.strip().splitlines()[0])
-            except Exception:
-                break
-            if free_mb == -1 or free_mb >= 5000:
-                break
-        unloaded = f' (авто-выгружено моделей: {n})'
-    else:
-        unloaded = ''
-    # Ветка 1: локальный ComfyUI (:8188) — основной движок (FLUX GGUF, workflow в tools/comfy_flux.py)
-    _tools_dir = Path('/home/rover/AI-Combine/tools')
-    if str(_tools_dir) not in _sys.path:
-        _sys.path.insert(0, str(_tools_dir))
-    try:
-        import comfy_flux
-        if comfy_flux.server_alive():
-            res = comfy_flux.flux_generate(prompt, str(op), width, height, steps)
-            if res.startswith('✅'):
-                return res + ' (ComfyUI)' + unloaded
-    except Exception:
-        pass  # молча переходим на фолбэк sd.cpp
-    # Ветка 2 (фолбэк): stable-diffusion.cpp
+        return '⚠️ свободно ' + str(free_mb) + ' MiB VRAM. Сначала ai_unload all, затем повторите.'
     cmd = [SD_CLI,
-        '--diffusion-model', '/home/rover/AI-Combine/AI-Models/flux/flux1-schnell-Q4_K_S.gguf',
-        '--clip_l', '/home/rover/AI-Combine/AI-Models/flux/clip_l.safetensors',
-        '--t5xxl', '/home/rover/AI-Combine/AI-Models/flux/t5-v1_1-xxl-encoder-Q5_K_M.gguf',
-        '--vae', '/home/rover/AI-Combine/AI-Models/flux/ae.safetensors',
+        '--diffusion-model', SD_DIR + '/flux1-schnell-Q4_K_S.gguf',
+        '--clip_l', SD_DIR + '/clip_l.safetensors',
+        '--t5xxl', SD_DIR + '/t5-v1_1-xxl-encoder-Q5_K_M.gguf',
+        '--vae', SD_DIR + '/ae.safetensors',
         '--prompt', prompt, '--cfg-scale', '1.0',
-        '--steps', str(max(1, min(int(steps or 4), 16))),
-        '--width', str(max(128, min(int(width or 512), 2048))),
-        '--height', str(max(128, min(int(height or 512), 2048))),
+        '--steps', str(max(1, min(int(steps or 4), 8))),
+        '--width', str(max(128, min(int(width or 512), 1024))),
+        '--height', str(max(128, min(int(height or 512), 1024))),
         '-v', '-o', str(op)]
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd=SD_DIR)
         if op.exists() and op.stat().st_size > 10000:
-            return '✅ картинка сохранена: ' + str(op) + unloaded
+            return '✅ картинка сохранена: ' + str(op)
         err = (r.stderr or r.stdout or '')[-400:]
         return '⛔ image_generate: ' + err
     except subprocess.TimeoutExpired:
@@ -524,14 +480,11 @@ def image_generate(prompt: str, output: str = '', width: int = 512, height: int 
 
 def _glm_vision_call(image_path: str, question: str) -> str:
     import base64
-    import urllib.parse
     p = Path(image_path).expanduser()
     if not p.exists():
         return '⛔ файл не найден: ' + image_path
     b64 = base64.b64encode(p.read_bytes()).decode()
-    endpoint, model = _glm_endpoint_and_model()
-    vision_model = 'glm-4.6v' if 'z.ai' in endpoint else GLM_VISION_MODEL
-    data = _post_fixed(endpoint, {'model': vision_model, 'max_tokens': 1500, 'messages': [{'role': 'user', 'content': [
+    data = _post_fixed(GLM_ENDPOINT, {'model': GLM_VISION_MODEL, 'max_tokens': 1500, 'messages': [{'role': 'user', 'content': [
         {'type': 'image_url', 'image_url': {'url': 'data:image/png;base64,' + b64}},
         {'type': 'text', 'text': question},
     ]}]}, {'Authorization': 'Bearer ' + _glm_key(), 'Content-Type': 'application/json'}, 180)

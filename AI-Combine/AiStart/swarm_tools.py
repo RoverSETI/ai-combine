@@ -274,7 +274,18 @@ GIGA_SCRIPT = GIGA_DIR + '/stt_model.py'
 
 
 STT_PROMPT = (
-    'Ты — редактор стенограмм устной речи на русском. Тебе дан сырой текст распознавания.' + chr(10) +
+    'Ты — редактор стенограмм устной речи на русском. Тебе дан текст с репликами,' + chr(10) +
+    'размеченными по голосам (спикеры определены диаризацией) или по смыслу.' + chr(10) +
+    'Сделай следующее:' + chr(10) +
+    '1. Исправь орфографию, грамматику и пунктуацию в каждой реплике.' + chr(10) +
+    '2. Убери слова-паразиты, заикания и повторы.' + chr(10) +
+    '3. МЕТКИ СПИКЕРОВ И ТАЙМКОДЫ СОХРАНИ КАК ЕСТЬ: строки вида «**SPEAKER_XX [ММ:СС]:** текст» (или «**Спикер N:**») не переименовывай, не сливай и не перепутай реплики.' + chr(10) +
+    '4. Сохрани изначальный смысл и стиль автора.' + chr(10) +
+    '5. Верни ТОЛЬКО готовый Markdown без твоих комментариев и вступлений.'
+)
+
+STT_PROMPT_SEMANTIC = (
+    'Ты — редактор стенограмм устной речи на русском. Тебе дан сырой текст без разметки.' + chr(10) +
     'Сделай следующее:' + chr(10) +
     '1. Исправь орфографию, грамматику и пунктуацию.' + chr(10) +
     '2. Убери слова-паразиты, заикания и повторы.' + chr(10) +
@@ -287,52 +298,110 @@ STT_PROMPT = (
 
 @mcp.tool()
 def stt_transcribe(path: str, clean: bool = False) -> str:
-    """Транскрибация аудиофайла локально (GigaAM-v3, русский) + редактура через hard (qwen3.5-9b).
+    """Транскрибация аудиофайла локально (GigaAM-v3) со СПИКЕРАМИ по голосу + редактура qwen.
 
-    Пайплайн: GigaAM распознаёт текст → hard-модель исправляет орфографию,
-    выделяет спикеров диалога по смыслу и оформляет Markdown → результат
-    сохраняется в <имя_аудио>.md рядом с файлом и возвращается в чат.
-    При первом запуске скачивает веса модели (~1-2 ГБ). Перед запуском
-    агент должен освободить VRAM: ai_unload all.
+    Пайплайн: 1) авто-выгрузка моделей роутера из VRAM (GigaAM ~1 ГБ + pyannote)
+    2) pyannote диаризация по голосу → реплики с SPEAKER_XX и таймкодами →
+    GigaAM транскрибирует каждую реплику; 3) hard qwen3.5-9b редактирует текст
+    сохраняя метки спикеров; 4) markdown сохраняется в <имя_аудио>.md рядом.
+    Если диаризация недоступна (нет HF-токена ~/AiStart/HfToken) — фолбэк:
+    сплошная транскрипция, спикеров определяет qwen по смыслу.
 
     Args:
         path: путь к файлу wav/mp3/ogg/m4a
-        clean: устарел, редактура выполняется всегда (оставлен для совместимости)
+        clean: устарел, игнорируется (редактура всегда)
     """
     p = Path(path).expanduser()
     if not p.exists():
         return '⛔ файл не найден: ' + path
+    # авто-выгрузка моделей роутера: GigaAM+pyannote требуют VRAM (как image_generate)
+    unloaded_note = ''
+    try:
+        free = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
+                              capture_output=True, text=True, timeout=10)
+        free_mb = int(free.stdout.strip().splitlines()[0])
+    except Exception:
+        free_mb = -1
+    if free_mb != -1 and free_mb < 4500:
+        n_un = 0
+        try:
+            rr = requests.get('http://127.0.0.1:8081/v1/models', timeout=10)
+            for m in rr.json().get('data', []):
+                if (m.get('status') or {}).get('value') == 'loaded':
+                    try:
+                        requests.post('http://127.0.0.1:8081/models/unload', json={'model': m.get('id')}, timeout=60)
+                        n_un += 1
+                    except Exception:
+                        pass
+            unloaded_note = ' (авто-выгружено моделей роутера: ' + str(n_un) + ')'
+        except Exception:
+            pass
     try:
         import os as _os
         env = dict(_os.environ)
         env.pop('LD_LIBRARY_PATH', None)  # AppImage-библиотеки ZCode ломают torch в giga-venv
-        r = subprocess.run([GIGA_PY, GIGA_SCRIPT, str(p)], env=env,
+        # Ветка 1: голосовая диаризация pyannote → GigaAM по репликам
+        r = subprocess.run([GIGA_PY, GIGA_SCRIPT, str(p), '--diarize', '--json'], env=env,
                            capture_output=True, text=True, timeout=1800, cwd=GIGA_DIR)
         out = (r.stdout or '').strip()
-        if r.returncode != 0:
-            return '⛔ stt: ' + (r.stderr or out)[-500:]
+        segments = []
+        raw_text = ''
+        if r.returncode == 0 and out:
+            try:
+                parsed = json.loads(out)
+                segments = parsed.get('segments') or []
+                raw_text = parsed.get('text') or ''
+                if parsed.get('status') == 'error':
+                    segments, raw_text = [], ''
+            except Exception:
+                segments, raw_text = [], ''
+        # Ветка 2 (фолбэк): сплошная транскрипция без диаризации
+        if not segments and not raw_text:
+            r = subprocess.run([GIGA_PY, GIGA_SCRIPT, str(p)], env=env,
+                               capture_output=True, text=True, timeout=1800, cwd=GIGA_DIR)
+            out = (r.stdout or '').strip()
+            if r.returncode != 0:
+                return '⛔ stt: ' + (r.stderr or out)[-500:]
+            raw_text = out
+        if not raw_text:
+            return '⚠️ Речь не распознана.'
         md_text = ''
         try:
             from mcp_server import _chat_once
             from mcp_server import _agents_cfg
             role = dict(_agents_cfg()['roles']['hard'])
-            role['max_tokens'] = 4000  # длинные транскрипции не должны обрезаться
+            role['max_tokens'] = 4000
+            if segments:
+                lines = []
+                for s in segments:
+                    m, sec = divmod(int(s['start']), 60)
+                    lines.append('**' + s['speaker'] + ' [' + str('%02d:%02d' % (m, sec)) + ']:** ' + s['text'])
+                user_text = chr(10).join(lines)
+                stt_prompt = STT_PROMPT
+            else:
+                user_text = raw_text[-12000:]
+                stt_prompt = STT_PROMPT_SEMANTIC
             msg = _chat_once(role, [
-                {'role': 'system', 'content': STT_PROMPT},
-                {'role': 'user', 'content': out[-12000:]}], use_tools=False)
+                {'role': 'system', 'content': stt_prompt},
+                {'role': 'user', 'content': user_text}], use_tools=False)
             md_text = (msg.get('content') or '').strip()
         except Exception:
-            pass  # fallback: сырая транскрипция
+            pass  # fallback: без редактуры
         if not md_text:
-            md_text = out
+            if segments:
+                md_text = chr(10).join(
+                    '**' + s['speaker'] + ' [' + str('%02d:%02d' % (int(s['start']) // 60, int(s['start']) % 60)) + ']:** ' + s['text']
+                    for s in segments)
+            else:
+                md_text = raw_text
         header = '# Транскрипция: ' + p.name + chr(10) + chr(10)
         final_md = header + md_text + chr(10)
         try:
             md_path = p.with_suffix('.md')
             md_path.write_text(final_md, encoding='utf-8')
-            note = chr(10) + chr(10) + '---' + chr(10) + '💾 Сохранено: ' + str(md_path)
+            note = chr(10) + chr(10) + '---' + chr(10) + '💾 Сохранено: ' + str(md_path) + unloaded_note
         except Exception as e:
-            note = chr(10) + chr(10) + '---' + chr(10) + '⚠️ md не сохранён: ' + str(e)
+            note = chr(10) + chr(10) + '---' + chr(10) + '⚠️ md не сохранён: ' + str(e) + unloaded_note
         return final_md + note
     except subprocess.TimeoutExpired:
         return '⛔ stt: таймаут 30 минут'

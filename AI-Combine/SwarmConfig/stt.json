@@ -32,11 +32,19 @@
 
   "вычистка_текста": {
     "кто": "hard-модель qwen3.5-9b-instruct (роутер :8081, роль hard из agents.json) — редактура ВСЕГДА, не по флагу",
-    "правило": "Сохранять смысл и стиль автора; убирать только паразиты/заикания; ВЫДЕЛЯТЬ спикеров диалога по смыслу (**Спикер 1:** …); Markdown на выходе",
-    "промпт": "STT_PROMPT в gen_swarm_tools.py (MCP-ветка) и LLM_PROMPT в main_transcriber_all.py (интерактивный режим)",
+    "правило": "Сохранять смысл и стиль автора; убирать только паразиты/заикания; МЕТКИ СПИКЕРОВ СОХРАНЯТЬ как есть (**SPEAKER_XX [ММ:СС]:** или **Спикер N:**); Markdown на выходе",
+    "промпт": "STT_PROMPT (голосовая диаризация) и STT_PROMPT_SEMANTIC (фолбэк по смыслу) в gen_swarm_tools.py; LLM_PROMPT в main_transcriber_all.py",
     "сохранение": "MCP-ветка пишет <имя_аудио>.md рядом с файлом; интерактивный режим — как прежде",
-    "fallback": "если hard недоступен (VRAM/роутер лежит) — возвращать сырую транскрипцию без редактуры",
-    "обновлено": "18.11.2026 — medium (qwen2.5-coder-7b) удалён из роя, постобработка переведена на hard; спикеры определяются LLM по смыслу (не по голосу, GigaAM не диаризует)"
+    "fallback": "если hard недоступен (VRAM/роутер лежит) — возвращать транскрипцию без редактуры"
+  },
+
+  "диаризация_по_голосу": {
+    "статус": "18.11.2026: внедрена в stt_model.py (--diarize) и тул stt_transcribe",
+    "движок": "pyannote speaker-diarization-3.1 (segmentation-3.0 + wespeaker embedding), pyannote.audio 4.0.7 в venv",
+    "токен": "HF read-токен обязателен: файл ~/AiStart/HfToken (chmod 600) или env HF_TOKEN; модели gated — условия принять на https://huggingface.co/pyannote/segmentation-3.0 и https://huggingface.co/pyannote/wespeaker-voxceleb-resnet34-LM",
+    "алгоритм": "pyannote делит аудио на TURN-ы по голосу → слияние коротких сегментов (gap<=0.5с) → нарезка реплик >25с → GigaAM транскрибирует каждый кусок → JSON {start, end, speaker, text}",
+    "vram": "pyannote ~1.5 ГБ + GigaAM ~1 ГБ; перед STT тул сам выгружает модели роутера при free<4500 МБ",
+    "фолбэк": "нет токена/ошибка диаризации → сплошная транскрипция → спикеров определяет qwen по смыслу (STT_PROMPT_SEMANTIC)"
   },
 
   "конфликт_vram": {

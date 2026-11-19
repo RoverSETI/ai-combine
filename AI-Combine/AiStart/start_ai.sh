@@ -28,7 +28,14 @@ ROUTER_BIND="127.0.0.1"; ROUTER_PORT=8081
 EMBED_BIND="127.0.0.1";  EMBED_PORT=8082
 WEBUI_BIND="127.0.0.1";  WEBUI_PORT=8080
 
-THREADS=6
+# Потоки llama.cpp: 12 = половина физических ядер E5-2686v4 (18/36).
+# Больше потоков на GPU-моделях почти не даёт (модель в VRAM, CPU простаивает —
+# это НОРМА), а вот на ТЯЖЁЛОМ 35B (n-cpu-moe=28, эксперты на CPU) можно поднять
+# до 18 — тогда десктоп может подлагивать во время генерации.
+THREADS=12
+# ComfyUI не держим постоянно: 1 = запускать при старте комбайна,
+# 0 = рисование по требованию (./comfy_start.sh, стоп: ./comfy_stop.sh)
+START_COMFY="${START_COMFY:-0}"
 MODELS_MAX=1                        # моделей одновременно в VRAM (12 ГБ → 1)
 WARMUP_MODEL="qwen3-4b-instruct-2507"   # прогрев конвейера ("" = выключить) — 14.11: 0.5b удалена из роя
 WARMUP_TIMEOUT=120
@@ -160,30 +167,42 @@ else
 fi
 
 # ---------------- 5.1. ComfyUI (FLUX-рисование через API, :8188) ----------------
+# START_COMFY=0 (по умолчанию): ComfyUI НЕ автозапуск — VRAM 12 ГБ свободна для LLM.
+# Когда нужно рисование: ./comfy_start.sh (старт) и ./comfy_stop.sh (стоп — VRAM освобождается).
+# Правило: НЕ держать ComfyUI и тяжёлую LLM одновременно — VRAM 12 ГБ не хватает обоим.
 COMFY_PY="/home/rover/AI-Combine/ComfyUI/.venv/bin/python"
 COMFY_DIR="/home/rover/AI-Combine/ComfyUI"
-if [ -x "$COMFY_PY" ]; then
-    if ! curl -s --max-time 3 http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then
-        log "🎨  Запуск ComfyUI (:8188)..."
-        : > "$LOG_DIR/comfyui.log"
-        nohup "$COMFY_PY" "$COMFY_DIR/main.py" --listen 127.0.0.1 --port 8188 --reserve-vram 1.5 \
-            > "$LOG_DIR/comfyui.log" 2>&1 < /dev/null &
-        COMFY_PID=$!
-        echo "$COMFY_PID" > "$RUN_DIR/comfyui.pid"
-        for _ in $(seq 1 30); do
-            curl -s --max-time 3 http://127.0.0.1:8188/system_stats >/dev/null 2>&1 && break
-            sleep 2
-        done
-        if curl -s --max-time 3 http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then
-            log "✅ ComfyUI готов (:8188, PID $COMFY_PID)"
+if [ "$START_COMFY" = "1" ]; then
+    if [ -x "$COMFY_PY" ]; then
+        if ! curl -s --max-time 3 http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then
+            log "🎨  Запуск ComfyUI (:8188)..."
+            : > "$LOG_DIR/comfyui.log"
+            nohup "$COMFY_PY" "$COMFY_DIR/main.py" --listen 127.0.0.1 --port 8188 --reserve-vram 1.5 \
+                > "$LOG_DIR/comfyui.log" 2>&1 < /dev/null &
+            COMFY_PID=$!
+            echo "$COMFY_PID" > "$RUN_DIR/comfyui.pid"
+            for _ in $(seq 1 30); do
+                curl -s --max-time 3 http://127.0.0.1:8188/system_stats >/dev/null 2>&1 && break
+                sleep 2
+            done
+            if curl -s --max-time 3 http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then
+                log "✅ ComfyUI готов (:8188, PID $COMFY_PID)"
+            else
+                report_fail "$LOG_DIR/comfyui.log"; log "⚠️ продолжаю без ComfyUI (image_generate → фолбэк sd.cpp)"
+            fi
         else
-            report_fail "$LOG_DIR/comfyui.log"; log "⚠️ продолжаю без ComfyUI (image_generate → фолбэк sd.cpp)"
+            log "✅ ComfyUI уже работает (:8188)"
         fi
     else
-        log "✅ ComfyUI уже работает (:8188)"
+        log "⚠️  ComfyUI не найден — image_generate уйдёт на фолбэк sd.cpp"
     fi
 else
-    log "⚠️  ComfyUI не найден — image_generate уйдёт на фолбэк sd.cpp"
+    # если ComfyUI уже поднят (вручную) — не трогаем
+    if curl -s --max-time 3 http://127.0.0.1:8188/system_stats >/dev/null 2>&1; then
+        log "✅ ComfyUI уже работает (:8188) — автозапуск не нужен"
+    else
+        log "⚪ ComfyUI не запущен (START_COMFY=0 — экономия VRAM). Рисование: ./comfy_start.sh"
+    fi
 fi
 
 # ---------------- 5. MCP-сервер local-tools (фото/Habr/Obsidian/терминал/агент) ----------------

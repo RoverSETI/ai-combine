@@ -632,5 +632,81 @@ def image_generate_cloud(prompt: str, output: str = '') -> str:
         return '⛔ image_generate_cloud: ' + str(e)
 
 
-print('swarm_tools загружен: web_search, web_fetch, glm_think, glm_review, stt_transcribe, stt_listen, image_describe, image_generate, glm_vision, image_generate_cloud')
+@mcp.tool()
+def image_search(query: str, limit: int = 6, source: str = 'all', download: bool = False) -> str:
+    """Поиск изображений в интернете: Openverse (CC-лицензии) + NASA (public domain).
+
+    Поиск референсов для арта и документов. Без API-ключей.
+    Лицензию проверять перед публикацией; скачивание — только с allowlist-доменов.
+
+    Args:
+        query: что искать (обяз.)
+        limit: сколько результатов на источник, 1-10 (по умолчанию 6)
+        source: openverse | nasa | all (по умолчанию all)
+        download: сохранить первые результаты в ~/Pictures/swarm/refs/ (по умолчанию False)
+    """
+    try:
+        limit = max(1, min(int(limit), 10))
+        out = []
+        if source in ('openverse', 'all'):
+            r = requests.get('https://api.openverse.org/v1/images/',
+                params={'q': query, 'page_size': limit, 'mature': 'false'}, timeout=20,
+                headers={'User-Agent': 'rover-swarm/1.0 (image_search)'})
+            r.raise_for_status()
+            for it in r.json().get('results', [])[:limit]:
+                out.append({'source': 'openverse', 'title': (it.get('title') or '')[:80],
+                    'url': it.get('url'), 'thumb': it.get('thumbnail'),
+                    'license': it.get('license'), 'creator': it.get('creator'),
+                    'size': [it.get('width'), it.get('height')],
+                    'page': it.get('foreign_landing_url')})
+        if source in ('nasa', 'all'):
+            r = requests.get('https://images-api.nasa.gov/search',
+                params={'q': query, 'media_type': 'image'}, timeout=20)
+            r.raise_for_status()
+            for it in r.json().get('collection', {}).get('items', [])[:limit]:
+                d = (it.get('data') or [{}])[0]
+                links = it.get('links') or []
+                thumb = links[0].get('href', '') if links else ''
+                out.append({'source': 'nasa', 'title': (d.get('title') or '')[:80],
+                    'url': thumb, 'thumb': thumb, 'license': 'public domain (NASA)',
+                    'nasa_id': d.get('nasa_id'), 'date': d.get('date_created')})
+        if not out:
+            return '⚪ ничего не найдено по: ' + query
+        if download:
+            ALLOWED_HOSTS = ('api.openverse.org', 'images-assets.nasa.gov', 'images-api.nasa.gov',
+                'upload.wikimedia.org', 'commons.wikimedia.org', 'live.staticflickr.com')
+            refs = Path('/home/rover/Pictures/swarm/refs')
+            refs.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime('%Y%m%d-%H%M%S')
+            saved = []
+            for i, it in enumerate(out):
+                u = it.get('url')
+                if not u:
+                    continue
+                try:
+                    p = urllib.parse.urlsplit(str(u))
+                    host = (p.hostname or '').lower()
+                    if p.scheme != 'https' or host not in ALLOWED_HOSTS:
+                        continue
+                    low = str(u).lower().split('?')[0]
+                    ext = '.jpg'
+                    if low.endswith('.png'): ext = '.png'
+                    elif low.endswith('.webp'): ext = '.webp'
+                    op = refs / (stamp + '-' + str(i + 1) + ext)
+                    rr = requests.get(str(u), timeout=30, allow_redirects=False)
+                    rr.raise_for_status()
+                    if len(rr.content) > MAX_WEB_BYTES:
+                        continue
+                    op.write_bytes(rr.content)
+                    saved.append(str(op))
+                except Exception:
+                    continue
+            if saved:
+                out.append({'downloaded': saved})
+        return json.dumps(out, ensure_ascii=False, indent=1)
+    except Exception as e:
+        return '⛔ image_search: ' + str(e)
+
+
+print('swarm_tools загружен: web_search, web_fetch, glm_think, glm_review, stt_transcribe, stt_listen, image_describe, image_generate, glm_vision, image_generate_cloud, image_search')
 

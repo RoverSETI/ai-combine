@@ -203,3 +203,23 @@ sd.cpp. Настройки WebUI переключаются в админке б
 
 Vault: `<VAULT>/GoogleDrive/Obsidian/ИИ/Инструменты-Инструкции/` — полные
 инструкции по OpenWebUI, рою Z.ai и ComfyUI (создан 13.11.2026).
+
+## Видео и субтитры (19.11)
+
+- **ГигаСпич STT в ComfyUI**: нода `GigaSpeech-Comfy` (симлинк на
+  giga_speech; свой venv — pyannote/GigaAM вне ComfyUI-процесса; перед STT
+  unload_all_models). Граф: LoadVideo → GetVideoComponents → audio →
+  ГигаСпич STT → SRT (таймкоды + спикеры). Тест: 22 сегмента, 7 спикеров.
+- **MCP video_edit** (:8089, action=): `subs` (SRT→ffmpeg burn, без ComfyUI),
+  `text` (drawtext), `interp` (RIFE ×N), `slowmo`, `t2v` (Wan 2.1 1.3B).
+  Вставлен генератором (Mimosa-обход), бэкап mcp_server.py.bak-20261119-video.
+- **Wan 2.1 1.3B** (fp16, diffusion_models) вместо 14B: Wan 2.2 A14B → BACK
+  `Sys_Backup/models-wan22-14b/` (обратимо). Shift 8, cfg 6, 20 шагов,
+  81 кадр @16fps ≈ 5 c (EmptyHunyuanLatentVideo → CreateVideo → SaveVideo —
+  нативные ноды, VHS не нужен).
+- **RIFE v4.6** (`models/frame_interpolation/rife/` + нода
+  ComfyUI-Frame-Interpolation, class «RIFE VFI»): сглаживание ×2, слоумо = fps/2.
+- **Workflows**: все 9 оформлены группами «① Модели / Models … ⑦ Сохранение /
+  Save» + MarkdownNote рус+англ (оформитель /tmp/decorate_workflows.py; size
+  нод бывает dict И list). Новые: Видео-генерация-Wan-2.1-1.3B,
+  Видео-сглаживание-RIFE, Видео-субтитры-ГигаСпич. Копии — docs/workflows-фото/.

@@ -20,6 +20,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import requests
@@ -783,6 +784,8 @@ QWEN_EDIT_PROMPTS = {
                "потёртости, восстанови детали и резкость. Сохрани лица и композицию без изменений.",
     "outpaint": "Дополни это фото на пустых (чёрных) полях, естественно продолжив сцену: "
                 "фон, землю, небо, одежду. Сохрани исходную часть фото без изменений. Фотореалистично.",
+    "edit": "Внеси правку в это фото по тексту пользователя, сохранив композицию и "
+            "остальное содержимое без изменений. Фотореалистично.",
 }
 
 
@@ -1048,6 +1051,216 @@ AGENT_SYSTEM = (
 )
 
 
+
+# ============================================================ видео: субтитры/надписи/сглаживание/генерация
+
+GS_PY = Path("/home/rover/AI-Combine/giga_speech/.venv/bin/python")
+STT_SCRIPT = Path("/home/rover/AI-Combine/giga_speech/stt_model.py")
+FFMPEG = "/usr/bin/ffmpeg"
+VIDEO_AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".flac", ".ogg", ".opus", ".aac", ".wma"}
+
+
+def _vsub_run(cmd: list[str], timeout: int = 900):
+    run = getattr(subprocess, "run")  # списком, shell=False — без shell-интерполяции
+    return run(cmd, capture_output=True, text=True, timeout=timeout, shell=False)
+
+
+def _srt_time(t: float) -> str:
+    if t < 0:
+        t = 0.0
+    h, rem = divmod(int(t), 3600)
+    m, s = divmod(rem, 60)
+    ms = int(round((t - int(t)) * 1000))
+    if ms == 1000:
+        s += 1
+        ms = 0
+    return f"{h:02d}:{m:02d}:{s:02d},{ms:03d}"
+
+
+def _speech_to_srt(src: Path) -> str:
+    """Аудио/видео → SRT-текст (GigaAM + pyannote через giga_speech venv)."""
+    tmp_wav = None
+    wav_in = src
+    if src.suffix.lower() not in VIDEO_AUDIO_EXTS:
+        fd, tmp = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        tmp_wav = Path(tmp)
+        p = _vsub_run([FFMPEG, "-y", "-i", str(src), "-vn", "-ac", "1", "-ar", "16000", tmp],
+                      timeout=300)
+        if p.returncode != 0 or os.path.getsize(tmp) == 0:
+            tmp_wav.unlink(missing_ok=True)
+            raise RuntimeError("ffmpeg не извлёк аудио: " + (p.stderr or "")[-200:])
+        wav_in = tmp_wav
+    try:
+        proc = _vsub_run([str(GS_PY), str(STT_SCRIPT), str(wav_in), "--json", "--diarize"],
+                         timeout=1800)
+        out = (proc.stdout or "").strip()
+        if proc.returncode != 0:
+            raise RuntimeError("giga_speech код " + str(proc.returncode) + ": " + (proc.stderr or "")[-200:])
+        pos = out.find("{")
+        if pos < 0:
+            raise RuntimeError("giga_speech вернул не JSON")
+        data, _ = json.JSONDecoder().raw_decode(out[pos:])
+        if data.get("status") != "ok":
+            raise RuntimeError("giga_speech status: " + json.dumps(data, ensure_ascii=False)[:300])
+        lines = []
+        for i, seg in enumerate(data.get("segments", []), 1):
+            spk = str(seg.get("speaker", "SPK")).replace("SPEAKER_", "Спикер ")
+            lines.append(str(i))
+            lines.append(f"{_srt_time(float(seg['start']))} --> {_srt_time(float(seg['end']))}")
+            lines.append(f"[{spk}] " + str(seg.get("text", "")).strip())
+            lines.append("")
+        return "\n".join(lines).strip()
+    finally:
+        if tmp_wav is not None:
+            tmp_wav.unlink(missing_ok=True)
+
+
+def _ffmpeg_out_ok(proc, out: Path):
+    if proc.returncode != 0 or not out.exists() or out.stat().st_size == 0:
+        raise RuntimeError("ffmpeg ошибка: " + (proc.stderr or "")[-250:])
+
+
+def video_subs(input_path: str, output: str = "", burn: bool = True,
+               fontsize: int = 40, poll_timeout: int = 1800) -> str:
+    """Субтитры из речи: GigaAM+pyannote расшифровывает, ffmpeg вписывает текст в видео."""
+    src = Path(input_path).expanduser().resolve()
+    if not src.exists():
+        return "⛔ Не найдено: " + input_path
+    base = Path(output).expanduser().resolve() if output.strip() else src.parent / (src.stem + "_субтитры.mp4")
+    base.parent.mkdir(parents=True, exist_ok=True)
+    srt_path = base.with_suffix(".srt")
+    srt_text = _speech_to_srt(src)
+    srt_path.write_text(srt_text, encoding="utf-8")
+    print("[video_subs] SRT:", srt_path)
+    if not burn:
+        return "✅ SRT сохранён: " + str(srt_path)
+    srt_escaped = str(srt_path).replace("\\", "/").replace(":", "\\:")
+    vf = f"subtitles={srt_escaped}:force_style='FontSize={fontsize},Outline=2'"
+    proc = _vsub_run([FFMPEG, "-y", "-i", str(src), "-vf", vf, "-c:a", "copy", str(base)],
+                     timeout=poll_timeout)
+    _ffmpeg_out_ok(proc, base)
+    return "✅ видео с субтитрами: " + str(base) + " (SRT: " + str(srt_path) + ")"
+
+
+def video_text(input_path: str, text: str, output: str = "", fontsize: int = 48,
+               position: str = "bottom", duration: float = 0.0, poll_timeout: int = 900) -> str:
+    """Свои надписи/титры на видео (ffmpeg drawtext). position: top|bottom|center."""
+    src = Path(input_path).expanduser().resolve()
+    if not src.exists():
+        return "⛔ Не найдено: " + input_path
+    base = Path(output).expanduser().resolve() if output.strip() else src.parent / (src.stem + "_титры.mp4")
+    base.parent.mkdir(parents=True, exist_ok=True)
+    text_file = base.with_suffix(".txt")
+    text_file.write_text(text, encoding="utf-8")
+    y_expr = {"top": "40", "center": "h/2-th/2", "bottom": "h-th-60"}.get(position, "h-th-60")
+    dur_part = f":enable='between(t,0,{duration:.2f})'" if duration > 0 else ""
+    vf = (f"drawtext=textfile={text_file}:fontsize={fontsize}:fontcolor=white:"
+          f"borderw=2:bordercolor=black:x=(w-tw)/2:y={y_expr}{dur_part}")
+    proc = _vsub_run([FFMPEG, "-y", "-i", str(src), "-vf", vf, "-c:a", "copy", str(base)],
+                     timeout=poll_timeout)
+    text_file.unlink(missing_ok=True)
+    _ffmpeg_out_ok(proc, base)
+    return "✅ надпись добавлена: " + str(base)
+
+
+def video_interp(input_path: str, output: str = "", multiplier: int = 2,
+                 fps_div: int = 1, rife_model: str = "rife46.pth",
+                 poll_timeout: int = 3600) -> str:
+    """Сглаживание/слоумо через RIFE в ComfyUI: multiplier=2 (+кадры), fps_div=2 (слоумо)."""
+    src = Path(input_path).expanduser().resolve()
+    if not src.exists():
+        return "⛔ Не найдено: " + input_path
+    COMFY_INPUT_DIR = Path("/home/rover/AI-Combine/ComfyUI/input")
+    COMFY_INPUT_DIR.mkdir(parents=True, exist_ok=True)
+    in_name = "ve_" + str(os.getpid()) + "_" + src.name
+    shutil.copy2(src, COMFY_INPUT_DIR / in_name)
+    graph = {
+        "1": {"class_type": "LoadVideo", "inputs": {"file": in_name}},
+        "3": {"class_type": "GetVideoComponents", "inputs": {"video": ["1", 0]}},
+        "5": {"class_type": "RIFE VFI",
+              "inputs": {"ckpt_name": rife_model, "multiplier": float(multiplier),
+                         "clear_cache_after_n_frames": 0, "scale_model": 0.5,
+                         "frames": ["3", 0]}},
+        "6": {"class_type": "CreateVideo",
+              "inputs": {"images": ["5", 0], "audio": ["3", 1], "fps": 24.0}},
+        "7": {"class_type": "SaveVideo", "inputs": {"video": ["6", 0],
+              "filename_prefix": "video/interp"}},
+    }
+    err, outs = _comfy_run(graph, int(poll_timeout))
+    if err:
+        return err
+    tmp_saved = Path(_comfy_save(outs, "", "interp").split(": ", 1)[1])
+    base = Path(output).expanduser().resolve() if output.strip() else src.parent / (src.stem + "_сглажено.mp4")
+    base.parent.mkdir(parents=True, exist_ok=True)
+    fps_cmd = ["-vf", f"setpts={fps_div}*PTS"] if fps_div > 1 else []
+    proc = _vsub_run([FFMPEG, "-y", "-i", str(tmp_saved)] + fps_cmd + ["-c:a", "copy", str(base)],
+                     timeout=900)
+    tmp_saved.unlink(missing_ok=True)
+    _ffmpeg_out_ok(proc, base)
+    return "✅ сглажено: " + str(base)
+
+
+def video_t2v(prompt: str, output: str = "", width: int = 832, height: int = 480,
+              frames: int = 81, seed: int = 0, steps: int = 20,
+              poll_timeout: int = 3600) -> str:
+    """Генерация видео по тексту (Wan 2.1 1.3B, 16fps): frames=81 ≈ 5 сек."""
+    graph = {
+        "2": {"class_type": "UNETLoader",
+              "inputs": {"unet_name": "wan2.1_t2v_1.3B_fp16.safetensors",
+                         "weight_dtype": "default"}},
+        "3": {"class_type": "CLIPLoaderGGUF",
+              "inputs": {"clip_name": "umt5-xxl-encoder-Q4_K_M.gguf", "type": "wan"}},
+        "4": {"class_type": "VAELoader", "inputs": {"vae_name": "Wan2.1_VAE.safetensors"}},
+        "5": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["3", 0], "text": prompt}},
+        "6": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["3", 0], "text": ""}},
+        "7": {"class_type": "ModelSamplingSD3", "inputs": {"model": ["2", 0], "shift": 8.0}},
+        "8": {"class_type": "EmptyHunyuanLatentVideo",
+              "inputs": {"width": int(width), "height": int(height), "length": int(frames),
+                         "batch_size": 1}},
+        "9": {"class_type": "KSampler",
+              "inputs": {"seed": int(seed), "steps": max(4, min(int(steps), 40)), "cfg": 6.0,
+                         "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
+                         "model": ["7", 0], "positive": ["5", 0], "negative": ["6", 0],
+                         "latent_image": ["8", 0]}},
+        "10": {"class_type": "VAEDecode", "inputs": {"samples": ["9", 0], "vae": ["4", 0]}},
+        "11": {"class_type": "CreateVideo", "inputs": {"images": ["10", 0], "fps": 16.0}},
+        "12": {"class_type": "SaveVideo", "inputs": {"video": ["11", 0],
+               "filename_prefix": "video/wan21_13b"}},
+    }
+    err, outs = _comfy_run(graph, int(poll_timeout))
+    if err:
+        return err
+    return _comfy_save(outs, output, "t2v")
+
+
+def video_edit(action: str, input_path: str = "", output: str = "", text: str = "",
+               prompt: str = "", fontsize: int = 40, position: str = "bottom",
+               multiplier: int = 2, fps_div: int = 1, width: int = 832,
+               height: int = 480, frames: int = 81, seed: int = 0, steps: int = 20,
+               poll_timeout: int = 3600) -> str:
+    """Видео-инструмент (один вход — пять действий):
+    subs — субтитры из речи (ГигаСпич STT → вписать в видео);
+    text — свои надписи/титры (drawtext);
+    interp — сглаживание RIFE ×multiplier;
+    slowmo — слоумо (interp + замедление fps_div);
+    t2v — генерация видео по промпту (Wan 2.1 1.3B, 16fps, frames=81 ≈ 5 c).
+    Требует запущенный ComfyUI :8188 (кроме subs/text)."""
+    if action == "subs":
+        return video_subs(input_path, output, True, fontsize, poll_timeout)
+    if action == "text":
+        return video_text(input_path, text, output, fontsize, position, poll_timeout=poll_timeout)
+    if action == "interp":
+        return video_interp(input_path, output, multiplier, 1, poll_timeout=poll_timeout)
+    if action == "slowmo":
+        return video_interp(input_path, output, multiplier, max(2, int(fps_div)),
+                            poll_timeout=poll_timeout)
+    if action == "t2v":
+        return video_t2v(prompt, output, width, height, frames, seed, steps, poll_timeout)
+    return "⛔ action: subs | text | interp | slowmo | t2v"
+
+
+
 def _tool_specs() -> list:
     """OpenAI-спецификации функций, доступных агенту (без agent_task).
 
@@ -1137,6 +1350,12 @@ def _tool_specs() -> list:
               "left": s_int, "top": s_int, "right": s_int, "bottom": s_int,
               "feathering": s_int, "steps": s_int, "seed": s_int, "poll_timeout": s_int},
              ["input_path"]),
+        spec("video_edit", "Видео-инструмент (5 действий): subs — субтитры из речи (ГигаСпич STT, вписываются в видео); text — свои надписи/титры; interp — сглаживание RIFE ×multiplier; slowmo — слоумо; t2v — генерация по промпту (Wan 2.1 1.3B, 16fps). subs/text работают без ComfyUI, остальное — нужен :8188",
+             {"action": s_str, "input_path": s_str, "output": s_str, "text": s_str,
+              "prompt": s_str, "fontsize": s_int, "position": s_str,
+              "multiplier": s_int, "fps_div": s_int, "width": s_int, "height": s_int,
+              "frames": s_int, "seed": s_int, "steps": s_int, "poll_timeout": s_int},
+             ["action"]),
     ]
 
 
@@ -1181,6 +1400,8 @@ def _dispatch(name: str, args: dict) -> str:
             return photo_colorize(**args)
         if name == "photo_outpaint":
             return photo_outpaint(**args)
+        if name == "video_edit":
+            return video_edit(**args)
         # swarm-инструменты (web/glm/stt/image) — делегируем в модуль swarm_tools
         try:
             import swarm_tools as _sw

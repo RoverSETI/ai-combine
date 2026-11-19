@@ -1,7 +1,95 @@
 {
- "last_node_id": 9,
+ "last_node_id": 13,
  "last_link_id": 9,
  "nodes": [
+  {
+   "id": 10,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    -464,
+    -390
+   ],
+   "size": {
+    "0": 348.0,
+    "1": 88
+   },
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**① Модели / Models** — загрузка всех весов. Проверь имена файлов, если модель переезжала.\nEN: all model loaders live here."
+   ]
+  },
+  {
+   "id": 11,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    -464,
+    -110
+   ],
+   "size": {
+    "0": 348.0,
+    "1": 88
+   },
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**② Вход / Input** — Load Image / Load Video. Загрузи файл кнопкой upload.\nEN: put your input file here."
+   ]
+  },
+  {
+   "id": 12,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    -74,
+    -190
+   ],
+   "size": {
+    "0": 1108.0,
+    "1": 88
+   },
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**⑤ Обработка / Processing** — реставрация/маски/апскейл; параметры по умолчанию рабочие.\nEN: core processing nodes."
+   ]
+  },
+  {
+   "id": 13,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    1046,
+    -110
+   ],
+   "size": {
+    "0": 348.0,
+    "1": 88
+   },
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**⑦ Сохранение / Save** — результат в ComfyUI/output/.\nEN: result lands in ComfyUI/output."
+   ]
+  },
   {
    "id": 1,
    "type": "LoadImage",
@@ -418,7 +506,60 @@
    "IMAGE"
   ]
  ],
- "groups": [],
+ "groups": [
+  {
+   "id": 1,
+   "title": "① Модели / Models",
+   "bounding": [
+    -464,
+    -294,
+    348.0,
+    1218.0
+   ],
+   "color": "#3f5155",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 2,
+   "title": "② Вход / Input",
+   "bounding": [
+    -464,
+    -14,
+    348.0,
+    178.0
+   ],
+   "color": "#6d4b35",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 3,
+   "title": "⑤ Обработка / Processing",
+   "bounding": [
+    -74,
+    -94,
+    1108.0,
+    258.0
+   ],
+   "color": "#2a363b",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 4,
+   "title": "⑦ Сохранение / Save",
+   "bounding": [
+    1046,
+    -14,
+    348.0,
+    178.0
+   ],
+   "color": "#444444",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
  "config": {},
  "extra": {},
  "version": 0.4

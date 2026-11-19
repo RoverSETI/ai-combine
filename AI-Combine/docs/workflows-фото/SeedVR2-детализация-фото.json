@@ -1,9 +1,97 @@
 {
  "id": "e2c8e6ec-9e8a-4a81-a240-7e7d2befc2bf",
  "revision": 0,
- "last_node_id": 20,
+ "last_node_id": 24,
  "last_link_id": 19,
  "nodes": [
+  {
+   "id": 21,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    495.41407515842775,
+    383.64084949766976
+   ],
+   "size": {
+    "0": 340.866796875,
+    "1": 88
+   },
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**① Модели / Models** — загрузка всех весов. Проверь имена файлов, если модель переезжала.\nEN: all model loaders live here."
+   ]
+  },
+  {
+   "id": 22,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    515.6515751584279,
+    -11.336103627331013
+   ],
+   "size": {
+    "0": 320,
+    "1": 88
+   },
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**② Вход / Input** — Load Image / Load Video. Загрузи файл кнопкой upload.\nEN: put your input file here."
+   ]
+  },
+  {
+   "id": 23,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    1278.9734501584262,
+    362.2560838726697
+   ],
+   "size": {
+    "0": 320,
+    "1": 88
+   },
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**⑤ Обработка / Processing** — реставрация/маски/апскейл; параметры по умолчанию рабочие.\nEN: core processing nodes."
+   ]
+  },
+  {
+   "id": 24,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    1602.797668908428,
+    363.0256151226697
+   ],
+   "size": {
+    "0": 320,
+    "1": 88
+   },
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**⑦ Сохранение / Save** — результат в ComfyUI/output/.\nEN: result lands in ComfyUI/output."
+   ]
+  },
   {
    "id": 16,
    "type": "LoadImage",
@@ -814,7 +902,60 @@
    "TORCH_COMPILE_ARGS"
   ]
  ],
- "groups": [],
+ "groups": [
+  {
+   "id": 1,
+   "title": "① Модели / Models",
+   "bounding": [
+    495.41407515842775,
+    479.64084949766976,
+    340.866796875,
+    613.1726562499973
+   ],
+   "color": "#3f5155",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 2,
+   "title": "② Вход / Input",
+   "bounding": [
+    515.6515751584279,
+    84.66389637266899,
+    302.080078125,
+    342.0
+   ],
+   "color": "#6d4b35",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 3,
+   "title": "⑤ Обработка / Processing",
+   "bounding": [
+    1278.9734501584262,
+    458.2560838726697,
+    298.0,
+    414.0
+   ],
+   "color": "#2a363b",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 4,
+   "title": "⑦ Сохранение / Save",
+   "bounding": [
+    1602.797668908428,
+    459.0256151226697,
+    298.0,
+    298.0
+   ],
+   "color": "#444444",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
  "config": {},
  "extra": {
   "ds": {

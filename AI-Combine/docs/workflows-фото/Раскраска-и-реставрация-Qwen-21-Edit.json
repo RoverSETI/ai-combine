@@ -1,7 +1,117 @@
 {
- "last_node_id": 8,
+ "last_node_id": 13,
  "last_link_id": 10,
  "nodes": [
+  {
+   "id": 9,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    -434,
+    310
+   ],
+   "size": {
+    "0": 348.0,
+    "1": 88
+   },
+   "flags": {},
+   "order": 10,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**① Модели / Models** — загрузка всех весов. Проверь имена файлов, если модель переезжала.\nEN: all model loaders live here."
+   ]
+  },
+  {
+   "id": 10,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    -14,
+    190
+   ],
+   "size": {
+    "0": 348.0,
+    "1": 88
+   },
+   "flags": {},
+   "order": 11,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**② Вход / Input** — Load Image / Load Video. Загрузи файл кнопкой upload.\nEN: put your input file here."
+   ]
+  },
+  {
+   "id": 11,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    326,
+    -70
+   ],
+   "size": {
+    "0": 348.0,
+    "1": 88
+   },
+   "flags": {},
+   "order": 12,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**④ Промпт / Prompt** — текст по-русски (Qwen понимает нативно) или англ.\nEN: type your prompt here."
+   ]
+  },
+  {
+   "id": 12,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    686,
+    -70
+   ],
+   "size": {
+    "0": 348.0,
+    "1": 88
+   },
+   "flags": {},
+   "order": 13,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**⑥ Сэмплирование / Sampling** — шаги/сид/denoise. Больше шагов = дольше.\nEN: steps, seed, denoise."
+   ]
+  },
+  {
+   "id": 13,
+   "type": "MarkdownNote",
+   "title": "Note",
+   "pos": [
+    1026,
+    -70
+   ],
+   "size": {
+    "0": 668.0,
+    "1": 88
+   },
+   "flags": {},
+   "order": 14,
+   "mode": 0,
+   "inputs": [],
+   "outputs": [],
+   "properties": {},
+   "widgets_values": [
+    "**⑦ Сохранение / Save** — результат в ComfyUI/output/.\nEN: result lands in ComfyUI/output."
+   ]
+  },
   {
    "id": 1,
    "type": "LoadImage",
@@ -414,7 +524,73 @@
    "VAE"
   ]
  ],
- "groups": [],
+ "groups": [
+  {
+   "id": 1,
+   "title": "① Модели / Models",
+   "bounding": [
+    -434,
+    406,
+    348.0,
+    558.0
+   ],
+   "color": "#3f5155",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 2,
+   "title": "② Вход / Input",
+   "bounding": [
+    -14,
+    286,
+    348.0,
+    178.0
+   ],
+   "color": "#6d4b35",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 3,
+   "title": "④ Промпт / Prompt",
+   "bounding": [
+    326,
+    26,
+    348.0,
+    178.0
+   ],
+   "color": "#a1309b",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 4,
+   "title": "⑥ Сэмплирование / Sampling",
+   "bounding": [
+    686,
+    26,
+    348.0,
+    178.0
+   ],
+   "color": "#3355aa",
+   "font_size": 24,
+   "flags": {}
+  },
+  {
+   "id": 5,
+   "title": "⑦ Сохранение / Save",
+   "bounding": [
+    1026,
+    26,
+    668.0,
+    178.0
+   ],
+   "color": "#444444",
+   "font_size": 24,
+   "flags": {}
+  }
+ ],
  "config": {},
  "extra": {},
  "version": 0.4

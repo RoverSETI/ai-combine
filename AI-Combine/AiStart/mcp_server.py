@@ -866,6 +866,63 @@ def _comfy_save(outs: list, output: str, prefix: str) -> str:
     return "✅ сохранено: " + ", ".join(paths)
 
 
+def _memory_preflight(vram_needed_gb: float, ram_needed_gb: float = 0.0) -> str:
+    """Проверка памяти перед GPU-задачей: если VRAM мало — выгружает LLM роутера
+    (правило «последний запущенный получает память»). RAM не выгружаем — только
+    предупреждение (LLM-рой в RAM выгружается только ai_mem.sh free).
+
+    Returns: строку-note ('' — всё ок без выгрузки)."""
+    import time
+    notes = []
+
+    def _vram_free_gb() -> float:
+        try:
+            q = requests.get("http://127.0.0.1:8188/system_stats", timeout=5).json()
+            return float(q["devices"][0]["vram_free"]) / 2**30
+        except Exception:
+            try:
+                out = subprocess.run(["nvidia-smi", "--query-gpu=memory.free",
+                                      "--format=csv,noheader,nounits"],
+                                     capture_output=True, text=True, timeout=10)
+                return float(out.stdout.strip().splitlines()[0]) / 1024
+            except Exception:
+                return -1.0
+
+    def _ram_avail_gb() -> float:
+        try:
+            with open("/proc/meminfo", encoding="utf-8") as f:
+                for line in f:
+                    if line.startswith("MemAvailable"):
+                        return int(line.split()[1]) / 2**20
+        except Exception:
+            pass
+        return -1.0
+
+    free = _vram_free_gb()
+    if 0 <= free < vram_needed_gb:
+        n_un = 0
+        try:
+            models = requests.get("http://127.0.0.1:8081/models", timeout=10).json().get("data", [])
+            for md in models:
+                if md.get("status", {}).get("value") == "loaded":
+                    requests.post("http://127.0.0.1:8081/models/unload",
+                                  json={"model": md.get("id")}, timeout=60)
+                    n_un += 1
+        except Exception:
+            pass
+        time.sleep(4)
+        after = _vram_free_gb()
+        notes.append(f"авто-выгрузка LLM роутера: {n_un} шт. "
+                     f"(VRAM {free:.1f} → {after:.1f} ГБ свободно, требовалось {vram_needed_gb:.1f})")
+
+    if ram_needed_gb > 0:
+        ram = _ram_avail_gb()
+        if 0 <= ram < ram_needed_gb:
+            notes.append(f"⚠️ RAM мало: свободно {ram:.1f} ГБ, нужно ~{ram_needed_gb:.1f} — "
+                         "выгрузи тяжёлые LLM из RAM (./ai_mem.sh free) или возьми меньший клип/разрешение")
+    return ("; ".join(notes) + " ") if notes else ""
+
+
 def _bopbtl_graph(image_name: str, mode: str = "scratch",
                   face_enhance: bool = True, scale: float = 1.0) -> dict:
     """API-граф BOPBTL: царапины/качество + лица + (опц.) апскейл UltraSharp."""
@@ -940,11 +997,12 @@ def photo_restore_comfy(input_path: str, output: str = "", mode: str = "scratch"
     if mode not in ("scratch", "quality"):
         return "⛔ mode: scratch (царапины+качество) | quality (только качество)"
     name = _comfy_input_file(src)
+    pnote = _memory_preflight(3.0, 6.0)
     err, outs = _comfy_run(_bopbtl_graph(name, mode, bool(face_enhance), float(scale)),
                            int(poll_timeout))
     if err:
-        return err
-    return _comfy_save(outs, output, "restored")
+        return err + ("; " + pnote.strip() if pnote else "")
+    return _comfy_save(outs, output, "restored") + pnote
 
 
 def _qwen_edit_graph(image_name: str, prompt: str, negative: str = "",
@@ -988,11 +1046,12 @@ def photo_colorize(input_path: str, output: str = "", mode: str = "colorize",
         return "⛔ mode: colorize | restore | edit"
     text = (prompt or "").strip() or QWEN_EDIT_PROMPTS[mode]
     name = _comfy_input_file(src)
+    pnote = _memory_preflight(7.0, 8.0)
     err, outs = _comfy_run(_qwen_edit_graph(name, text, "", steps, seed, resolution),
                            int(poll_timeout))
     if err:
-        return err
-    return _comfy_save(outs, output, mode)
+        return err + ("; " + pnote.strip() if pnote else "")
+    return _comfy_save(outs, output, mode) + pnote
 
 
 def _qwen_outpaint_graph(image_name: str, prompt: str, negative: str = "",
@@ -1046,12 +1105,13 @@ def photo_outpaint(input_path: str, output: str = "", prompt: str = "",
         return f"⛔ Не найдено: {src}"
     text = (prompt or "").strip() or QWEN_EDIT_PROMPTS["outpaint"]
     name = _comfy_input_file(src)
+    pnote = _memory_preflight(7.0, 8.0)
     err, outs = _comfy_run(_qwen_outpaint_graph(name, text, "", left, top, right,
                                                 bottom, feathering, steps, seed),
                            int(poll_timeout))
     if err:
-        return err
-    return _comfy_save(outs, output, "outpaint")
+        return err + ("; " + pnote.strip() if pnote else "")
+    return _comfy_save(outs, output, "outpaint") + pnote
 
 
 # ============================================================ мини-агент
@@ -1185,6 +1245,7 @@ def video_interp(input_path: str, output: str = "", multiplier: int = 2,
     src = Path(input_path).expanduser().resolve()
     if not src.exists():
         return "⛔ Не найдено: " + input_path
+    pnote = _memory_preflight(2.5, 20.0)
     COMFY_INPUT_DIR = Path("/home/rover/AI-Combine/ComfyUI/input")
     COMFY_INPUT_DIR.mkdir(parents=True, exist_ok=True)
     in_name = "ve_" + str(os.getpid()) + "_" + src.name
@@ -1205,8 +1266,8 @@ def video_interp(input_path: str, output: str = "", multiplier: int = 2,
     }
     err, outs = _comfy_run(graph, int(poll_timeout))
     if err:
-        return err
-    tmp_saved = Path(_comfy_save(outs, "", "interp").split(": ", 1)[1])
+        return err + ("; " + pnote.strip() if pnote else "")
+    tmp_saved = Path(_comfy_save(outs, "", "interp").split(": ", 1)[1].split(", ")[0])
     base = Path(output).expanduser().resolve() if output.strip() else src.parent / (src.stem + "_сглажено.mp4")
     base.parent.mkdir(parents=True, exist_ok=True)
     fps_cmd = ["-vf", f"setpts={fps_div}*PTS"] if fps_div > 1 else []
@@ -1214,13 +1275,14 @@ def video_interp(input_path: str, output: str = "", multiplier: int = 2,
                      timeout=900)
     tmp_saved.unlink(missing_ok=True)
     _ffmpeg_out_ok(proc, base)
-    return "✅ сглажено: " + str(base)
+    return "✅ сглажено: " + str(base) + pnote
 
 
 def video_t2v(prompt: str, output: str = "", width: int = 832, height: int = 480,
               frames: int = 81, seed: int = 0, steps: int = 20,
               poll_timeout: int = 3600) -> str:
     """Генерация видео по тексту (Wan 2.1 1.3B, 16fps): frames=81 ≈ 5 сек."""
+    pnote = _memory_preflight(7.0, 10.0)
     graph = {
         "2": {"class_type": "UNETLoader",
               "inputs": {"unet_name": "wan2.1_t2v_1.3B_fp16.safetensors",
@@ -1246,8 +1308,8 @@ def video_t2v(prompt: str, output: str = "", width: int = 832, height: int = 480
     }
     err, outs = _comfy_run(graph, int(poll_timeout))
     if err:
-        return err
-    return _comfy_save(outs, output, "t2v")
+        return err + ("; " + pnote.strip() if pnote else "")
+    return _comfy_save(outs, output, "t2v") + pnote
 
 
 def video_edit(action: str, input_path: str = "", output: str = "", text: str = "",

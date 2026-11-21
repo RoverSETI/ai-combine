@@ -404,7 +404,8 @@
     "Node name for S&R": "SaveVideo"
    },
    "widgets_values": [
-    "video/wan21_13b"
+    "video/wan21_13b",
+    "auto"
    ]
   },
   {

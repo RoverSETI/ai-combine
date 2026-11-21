@@ -79,7 +79,7 @@ def api(method: str, path: str, data=None, files=None):
     for k, v in headers.items():
         req.add_header(k, v)
     try:
-        with _opener.open(req, timeout=300) as resp:
+        with _opener.open(req, timeout=900) as resp:
             return json.loads(resp.read())
     except urllib.error.HTTPError as e:
         detail = e.read().decode(errors="replace")[:200]

@@ -116,7 +116,7 @@
     "Node name for S&R": "RIFE VFI"
    },
    "widgets_values": [
-    "rife46.pth",
+    "rife49.pth",
     2.0,
     0,
     0.5,
@@ -192,7 +192,8 @@
     "Node name for S&R": "SaveVideo"
    },
    "widgets_values": [
-    "video/smoothed"
+    "video/smoothed",
+    "auto"
    ]
   },
   {

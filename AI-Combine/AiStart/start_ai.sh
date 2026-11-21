@@ -292,6 +292,19 @@ if [ -n "$WARMUP_MODEL" ]; then
 fi
 
 # ---------------- 7. Open WebUI ----------------
+# ---------------- 6b. Страж конфига WebUI (patch_webui_db.py) ----------------
+# Идемпотентная проверка перед стартом: целостность webui.db, persistent-таблица
+# config, env-точки. Не блокирует запуск: код 0/2 — предупреждение и продолжаем.
+"$BASE_DIR/.venv-tools/bin/python" "$BASE_DIR/patch_webui_db.py" --apply
+guard_rc=$?
+if [ "$guard_rc" -eq 0 ]; then
+    log "🛡 Страж webui: всё на месте"
+elif [ "$guard_rc" -eq 2 ]; then
+    log "🛡 Страж webui: найдена persistent-таблица config — сверка по webui_asserts.json (см. /tmp/webui_config_report.txt)"
+else
+    log "⚠️ Страж webui: отклонения в env/БД — детали выше; WebUI всё равно запускается"
+fi
+
 log "🌐 Запуск Open WebUI..."
 cd "$WEBUI_DIR" || die "не могу войти в $WEBUI_DIR"
 # shellcheck disable=SC1091

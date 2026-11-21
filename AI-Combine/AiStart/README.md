@@ -78,12 +78,13 @@
 - `models.ini` — 6 моделей роутера (qwen3.5-9b, coder-7b/3b/0.5b, llama-3.1-8b, nemotron-12b-vision). Ключи = полные имена опций llama-server; шаблон чата НЕ задаётся — берётся из GGUF каждой модели. qwen3.5-9b: `ctx-size = 16384` (для MCP-инструментов: specs+builtin ~6-9к токенов).
 - `start_ai.sh / stop_ai.sh / status_ai.sh` — управление комплексом (MCP-сервер запускается и проверяется в start_ai.sh, health-check через MCP initialize, не голый GET).
 - `mcp_server.py` — MCP-сервер local-tools (FastMCP, 127.0.0.1:8089/mcp, 7 инструментов). Запускается start_ai.sh, python из venv WebUI (там есть mcp, uvicorn, torch).
+- `patch_webui_db.py` + `webui_asserts.json` — страж конфига WebUI: перед каждым стартом проверяет целостность webui.db (PRAGMA quick_check), появление persistent-таблицы `config` (перекрывает env) и наличие env-точек в start_ai.sh. Вызывается из start_ai.sh автоматически; спека контрольных значений — webui_asserts.json.
 - `photo_fix.py` — реставрация фото (CLI + MCP-инструмент в одном файле). LaMa: simple-lama-inpainting (TorchScript, веса `~/.cache/torch/hub/checkpoints/big-lama.pt`), fallback cv2.inpaint.
 - `habr_config.json` — ключевые слова сканера, модели, пути, лимиты. **Слова для отслеживания меняйте здесь.**
 - `habr_scan.py` — сканер Habr → ИИ-конспекты → Obsidian (`ИИ/Habr` в хранилище).
 - `ask_kb.py` — вопросы к базе знаний с пошаговым решением.
 - `habr_state.json` — обработанные статьи (не трогать). `habr_index.json` — векторный индекс.
-- `.venv-cuda12` — pip-колёса с библиотеками CUDA 12 (критично для GPU, см. ниже).
+- `.venv-cuda12` — pip-колёса CUDA 12: теперь ТОЛЬКО фолбэк для старой сборки `~/llama`. Прод-сборка — `~/llama-cuda13` (нативная CUDA 13), ей костыль не нужен: `start_ai.sh` сам выбирает сборку и делает `unset LD_LIBRARY_PATH` (см. «Что было сломано», п.1).
 - `.venv-tools` — python-окружение сканера (requests + bs4).
 - `logs/` — логи всех сервисов. `run/` — PID-файлы.
 - `backup_2026-10-24/` — исходные версии всего, что переписано.
@@ -105,7 +106,7 @@ OpenAI-соединение WebUI: ключ `sk-local-dummy` (роутер кл�
 
 ## Что было сломано и как исправлено
 
-1. **GPU не работал вовсе**: сборка `~/llama` слинкована с CUDA 12 (`libcudart.so.12`, `libcublas.so.12`), а в системе CUDA 13.3 — бэкенд молча не грузился, все модели шли на CPU (4–5 ток/с). → В `.venv-cuda12` установлены подлинные pip-колёса `nvidia-cuda-runtime-cu12` + `nvidia-cublas-cu12`, `start_ai.sh` подставляет их через `LD_LIBRARY_PATH`. Теперь 9B Q8_0 даёт ~33 ток/с в VRAM 9.1/12 ГБ. (Альтернатива навсегда: пересобрать llama.cpp из исходников под CUDA 13.)
+1. **GPU не работал вовсе**: сборка `~/llama` слинкована с CUDA 12 (`libcudart.so.12`, `libcublas.so.12`), а в системе CUDA 13.3 — бэкенд молча не грузился, все модели шли на CPU (4–5 ток/с). → В `.venv-cuda12` установлены подлинные pip-колёса `nvidia-cuda-runtime-cu12` + `nvidia-cublas-cu12`, `start_ai.sh` подставляет их через `LD_LIBRARY_PATH`. Теперь 9B Q8_0 даёт ~33 ток/с в VRAM 9.1/12 ГБ. **21.11: альтернатива выполнена** — прод-сборка `~/llama-cuda13` (CUDA 13, ~35.8 т/с); `start_ai.sh` приоритетно берёт её и делает `unset LD_LIBRARY_PATH`, `.venv-cuda12` остаётся только фолбэком для старой `~/llama`.
 2. **Глобальный `--chat-template qwen2`** ломал Llama-3.1 и Nemotron (чужие спец-токены). → Убран; каждая модель использует свой шаблон из GGUF.
 3. **Open WebUI вообще не запускался**: команды `python3 -m open_webui.apps.webui.main` в 0.12.3 не существует, а вывод лился в `/dev/null`. → Запуск через `open-webui serve`.
 4. **`sudo pkill -9 -f python3`** в старом старте убивал ВСЕ процессы python3 в системе. → stop_ai.sh бьёт точечно по PID-файлам и точным шаблонам, sudo не нужен.

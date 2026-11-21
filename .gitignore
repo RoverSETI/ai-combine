@@ -135,3 +135,15 @@ habr_fetch_jobs.json
 # SwarmConfig: локальные бэкапы и runtime-состояние
 SwarmConfig/backup/
 SwarmConfig/state/
+
+# --- 21.11: служебные и секретные файлы AiStart (перекрывает белый список) ---
+models_.ini
+AiStart/models_.ini
+AI-Combine/AiStart/models_.ini
+Grok_Key
+HfToken
+HuggToken
+OpenRouteAi_Key
+GhToken
+ОТКАТ.txt
+GIT-УЧЕБНИК.md

@@ -1,0 +1,24 @@
+{
+  "_читай": "Контрольные точки конфига Open WebUI. 1) env_start_ai — что ДОЛЖНО быть в start_ai.sh (value=null → проверяется только наличие export). 2) db_config_keys — пути в JSON таблицы config webui.db; проверяются ТОЛЬКО если таблица появилась (после апгрейда/правки через админку). 3) sql — параметризованные запросы стража (плейсхолдеры ?, значения биндятся из python). Таблицы config нет = env-режим = норма.",
+  "env_start_ai": {
+    "WEBUI_AUTH": { "value": "False" },
+    "ENABLE_OLLAMA_API": { "value": "False" },
+    "OPENAI_API_BASE_URL": { "value": null },
+    "OPENAI_API_KEY": { "value": null },
+    "ENABLE_TITLE_GENERATION": { "value": "False" },
+    "ENABLE_TAGS_GENERATION": { "value": "False" },
+    "ENABLE_AUTOCOMPLETE_GENERATION": { "value": "False" },
+    "ENABLE_FOLLOW_UP_GENERATION": { "value": "False" }
+  },
+  "db_config_keys": [
+    { "key": "task.title.enable", "value": false },
+    { "key": "task.tags.enable", "value": false },
+    { "key": "task.follow_up.enable", "value": false },
+    { "key": "task.autocomplete.enable", "value": false },
+    { "key": "openai.enable", "value": true },
+    { "key": "openai.api_base_urls", "value": ["http://localhost:8081/v1"] },
+    { "key": "openai.api_keys", "value": ["sk-local-dummy"] },
+    { "key": "image_generation.engine", "value": "comfyui" }
+  ],
+  "глубокая_сверка": "python3 - <<'EOF'\nimport sqlite3, json\ncon = sqlite3.connect('file:...webui.db?mode=ro', uri=True)\nfor k, v in con.execute(\"SELECT key, value FROM config ORDER BY key\"):\n    print(k, '=', v)\nEOF"
+}

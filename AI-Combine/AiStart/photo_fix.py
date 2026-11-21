@@ -239,10 +239,22 @@ _lama = None
 
 
 def get_lama():
-    """Ленивая инициализация LaMa (CUDA, ~200 МБ VRAM). None — если недоступна."""
+    """Ленивая инициализация LaMa (CUDA, ~200 МБ VRAM).
+
+    None — если недоступна ИЛИ свободной VRAM меньше 1 ГБ (не рискуем OOM
+    при загруженной LLM — тогда сработает cv2.inpaint-фолбэк).
+    """
     global _lama
     if _lama is not None:
         return _lama
+    try:
+        import torch
+        if torch.cuda.is_available():
+            free_b, _total = torch.cuda.mem_get_info()
+            if free_b < (1 << 30):  # <1 ГБ свободно — LaMa не грузим
+                return None
+    except Exception:
+        pass
     try:
         from simple_lama_inpainting import SimpleLama
         _lama = SimpleLama()

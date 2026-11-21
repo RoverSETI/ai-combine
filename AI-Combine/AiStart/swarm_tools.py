@@ -500,10 +500,10 @@ def image_describe(path: str, question: str = 'Подробно опиши из�
 
 @mcp.tool()
 def image_generate(prompt: str, output: str = '', width: int = 512, height: int = 512, steps: int = 4) -> str:
-    """Нарисовать картинку ЛОКАЛЬНО: FLUX.1-schnell через stable-diffusion.cpp.
+    """Нарисовать картинку ЛОКАЛЬНО: FLUX.1-schnell через stable-diffusion.cpp (sd-cli).
 
-    Если свободно меньше 5 ГБ VRAM — инструмент откажет и подскажет вызвать
-    ai_unload all (LLM занимает ~10 ГБ).
+    Если VRAM занята LLM (меньше 5 ГБ свободно) — САМ выгружает модели роутера :8081
+    и повторяет проверку (до 2 попыток). VRAM освобождает сам.
 
     Args:
         prompt: описание картинки (лучше на английском)
@@ -517,14 +517,36 @@ def image_generate(prompt: str, output: str = '', width: int = 512, height: int 
     out_dir.mkdir(parents=True, exist_ok=True)
     out = output or str(out_dir / (datetime.now().strftime('%Y%m%d-%H%M%S') + '.png'))
     op = Path(out).expanduser()
-    try:
-        free = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
-                              capture_output=True, text=True, timeout=10)
-        free_mb = int(free.stdout.strip().splitlines()[0])
-    except Exception:
-        free_mb = -1
-    if free_mb != -1 and free_mb < 5000:
-        return '⚠️ свободно ' + str(free_mb) + ' MiB VRAM. Сначала ai_unload all, затем повторите.'
+    # VRAM: если занята LLM — авто-выгрузка моделей роутера :8081 (до 2 попыток)
+    unloaded_note = ''
+    free_mb = -1
+    for attempt in (1, 2):
+        try:
+            free = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
+                                  capture_output=True, text=True, timeout=10)
+            free_mb = int(free.stdout.strip().splitlines()[0])
+        except Exception:
+            free_mb = -1
+            break  # nvidia-smi недоступен — рисуем как раньше, без VRAM-гейта
+        if free_mb >= 5000:
+            break
+        if attempt == 2:
+            return ('⚠️ image_generate: свободно ' + str(free_mb) + ' MiB VRAM даже после авто-выгрузки '
+                    + 'моделей роутера. Освободите GPU (ComfyUI :8188 и др.) и повторите.')
+        n_un = 0
+        try:
+            rr = requests.get('http://127.0.0.1:8081/v1/models', timeout=10)
+            for m in rr.json().get('data', []):
+                if (m.get('status') or {}).get('value') == 'loaded':
+                    try:
+                        requests.post('http://127.0.0.1:8081/models/unload', json={'model': m.get('id')}, timeout=60)
+                        n_un += 1
+                    except Exception:
+                        pass
+            unloaded_note = ' (авто-выгружено моделей роутера: ' + str(n_un) + ')'
+        except Exception:
+            pass
+        time.sleep(5)  # выгрузка асинхронная — даём VRAM освободиться
     cmd = [SD_CLI,
         '--diffusion-model', SD_DIR + '/flux1-schnell-Q4_K_S.gguf',
         '--clip_l', SD_DIR + '/clip_l.safetensors',
@@ -538,7 +560,7 @@ def image_generate(prompt: str, output: str = '', width: int = 512, height: int 
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=1800, cwd=SD_DIR)
         if op.exists() and op.stat().st_size > 10000:
-            return '✅ картинка сохранена: ' + str(op)
+            return '✅ картинка сохранена: ' + str(op) + unloaded_note
         err = (r.stderr or r.stdout or '')[-400:]
         return '⛔ image_generate: ' + err
     except subprocess.TimeoutExpired:

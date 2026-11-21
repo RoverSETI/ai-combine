@@ -88,7 +88,7 @@
         "height": "по умолч. 768"
       },
       "реализация": "~/sd.cpp/build/bin/sd --diffusion-model flux1-schnell-Q4_K_S.gguf --clip clip_l.safetensors --t5xxl t5-v1_1-xxl-encoder-Q5_K_M.gguf --vae ae.safetensors --cfg-scale 1.0 --steps 4 -v --rng normal",
-      "внимание": "перед генерацией выгружать LLM (ai_unload all); t5xxl 9 ГБ грузится в RAM (offload)",
+      "внимание": "при занятой VRAM (<5 ГБ свободно) инструмент САМ выгружает модели роутера :8081 (до 2 попыток); t5xxl 9 ГБ грузится в RAM (offload)",
       "таймаут": 1200
     },
     "glm_vision": {

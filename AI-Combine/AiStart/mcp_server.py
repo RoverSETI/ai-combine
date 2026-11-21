@@ -42,6 +42,16 @@ DENY_PATTERNS = [
     r">\s*/dev/sd", r"\bmkfs\.", r"\bwipefs\b", r"\bshred\s+/dev",
     r"chmod\s+-R\s+777\s+/( |$)", r"\bcrontab\b", r"\busermod\b", r"\buserdel\b",
     r"pkill\s+-9\s+-f\s+(llama|open-webui|mcp_server)",
+    # --- 21.11: ключи, дотфайлы и типовые обходы чёрного списка ---
+    r"\.ssh\b",
+    r"(polzakey|grok_key|openrouteai_key|hftoken|huggtoken|ghtoken)",
+    r"(>|>>|tee)\s+\S*\.(bashrc|bash_profile|zshrc|zprofile|profile)\b",
+    r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;",
+    r"(curl|wget)[^|;]*\|\s*(sudo\s+)?(ba|z|da)?sh\b",
+    r"base64\s+(-d|--decode)[^|;]*\|\s*(ba)?sh\b",
+    r"shutil\.rmtree",
+    r"\bdd\b[^|;]*of=/dev/(sd|nvme|hd|vd|mmcblk)",
+    r"\bmv\s+[^;|>]*\s+/dev/null\s*$",
 ]
 
 
@@ -81,6 +91,9 @@ mcp = MCPServer(
         "photo_outpaint — дополнение оторванных краёв фото (Qwen-Edit + маска: "
         "исходная часть не меняется, дорисовываются только поля). "
         "Результаты — в ~/Pictures/comfy или по output. "
+        "image_search — поиск референсов-картинок (Openverse CC + NASA, без ключей); "
+        "stt_listen — голосовая команда с микрофона (запись N секунд → текст); "
+        "vectorize_file — растровое изображение → векторный SVG (vtracer). "
         "agent_task — многошаговая задача: модель сама составляет план и выполняет его "
         "по шагам, вызывая эти же инструменты. "
         "АГЕНТЫ ПО СЛОЖНОСТИ (конфиг agents.json): ai_ask — один проход с авто-выбором "
@@ -825,14 +838,14 @@ def _comfy_run(graph: dict, poll_timeout: int = 1800) -> tuple[str, list[bytes]]
                 rr = requests.get(f"{COMFY}/view", timeout=120, params={
                     "filename": img["filename"], "subfolder": img.get("subfolder", ""),
                     "type": img.get("type", "output")})
-                outs.append(rr.content)
+                outs.append((img["filename"], rr.content))
         if outs:
             return "", outs
     return f"⛔ ComfyUI: таймаут ожидания {poll_timeout} с", []
 
 
-def _comfy_save(outs: list[bytes], output: str, prefix: str) -> str:
-    """Сохранить png-байты; output — путь или папка; иначе ~/Pictures/comfy."""
+def _comfy_save(outs: list, output: str, prefix: str) -> str:
+    """Сохранить байты; расширение берётся из имени файла ComfyUI (.png/.mp4)."""
     from datetime import datetime
     paths = []
     if output:
@@ -844,8 +857,9 @@ def _comfy_save(outs: list[bytes], output: str, prefix: str) -> str:
         base_dir.mkdir(parents=True, exist_ok=True)
     stem = (Path(output).expanduser().stem if output else
             datetime.now().strftime("%Y%m%d-%H%M%S") + "_" + prefix)
-    for i, data in enumerate(outs):
-        name = stem + (f"_{i}" if len(outs) > 1 else "") + ".png"
+    for i, (fname, data) in enumerate(outs):
+        ext = Path(fname).suffix or ".png"
+        name = stem + (f"_{i}" if len(outs) > 1 else "") + ext
         p = base_dir / name
         p.write_bytes(data)
         paths.append(str(p))
@@ -1165,7 +1179,7 @@ def video_text(input_path: str, text: str, output: str = "", fontsize: int = 48,
 
 
 def video_interp(input_path: str, output: str = "", multiplier: int = 2,
-                 fps_div: int = 1, rife_model: str = "rife46.pth",
+                 fps_div: int = 1, rife_model: str = "rife49.pth",
                  poll_timeout: int = 3600) -> str:
     """Сглаживание/слоумо через RIFE в ComfyUI: multiplier=2 (+кадры), fps_div=2 (слоумо)."""
     src = Path(input_path).expanduser().resolve()
@@ -1179,13 +1193,15 @@ def video_interp(input_path: str, output: str = "", multiplier: int = 2,
         "1": {"class_type": "LoadVideo", "inputs": {"file": in_name}},
         "3": {"class_type": "GetVideoComponents", "inputs": {"video": ["1", 0]}},
         "5": {"class_type": "RIFE VFI",
-              "inputs": {"ckpt_name": rife_model, "multiplier": float(multiplier),
-                         "clear_cache_after_n_frames": 0, "scale_model": 0.5,
+              "inputs": {"ckpt_name": rife_model, "multiplier": int(multiplier),
+                         "clear_cache_after_n_frames": 10, "scale_factor": 0.5,
+                         "fast_mode": True, "ensemble": True, "dtype": "float32",
+                         "batch_size": 1, "torch_compile": False,
                          "frames": ["3", 0]}},
         "6": {"class_type": "CreateVideo",
               "inputs": {"images": ["5", 0], "audio": ["3", 1], "fps": 24.0}},
         "7": {"class_type": "SaveVideo", "inputs": {"video": ["6", 0],
-              "filename_prefix": "video/interp"}},
+              "filename_prefix": "video/interp", "format": "auto"}},
     }
     err, outs = _comfy_run(graph, int(poll_timeout))
     if err:
@@ -1226,7 +1242,7 @@ def video_t2v(prompt: str, output: str = "", width: int = 832, height: int = 480
         "10": {"class_type": "VAEDecode", "inputs": {"samples": ["9", 0], "vae": ["4", 0]}},
         "11": {"class_type": "CreateVideo", "inputs": {"images": ["10", 0], "fps": 16.0}},
         "12": {"class_type": "SaveVideo", "inputs": {"video": ["11", 0],
-               "filename_prefix": "video/wan21_13b"}},
+               "filename_prefix": "video/wan21_13b", "format": "auto"}},
     }
     err, outs = _comfy_run(graph, int(poll_timeout))
     if err:
@@ -1321,9 +1337,16 @@ def _tool_specs() -> list:
              {"url": s_str, "max_chars": s_int}, ["url"]),
         spec("image_describe", "Распознать картинку локальной VL-моделью (текст, сцены, объекты)",
              {"path": s_str, "question": s_str}, ["path"]),
-        spec("image_generate", "НАРИСОВАТЬ картинку локально (FLUX через ComfyUI :8188, фолбэк sd.cpp). VRAM освобождает сам.",
+        spec("image_generate", "НАРИСОВАТЬ картинку локально (FLUX.1-schnell через sd.cpp; при занятой VRAM сам выгружает модели роутера). До 1024×1024",
              {"prompt": s_str, "output": s_str, "width": s_int, "height": s_int, "steps": s_int},
              ["prompt"]),
+        spec("stt_listen", "Записать микрофон N секунд и распознать речь (голосовая команда)",
+             {"seconds": s_int, "device": s_int}),
+        spec("image_search", "Поиск изображений в интернете (Openverse CC-лицензии + NASA public domain); download=true скачает референсы",
+             {"query": s_str, "limit": s_int, "source": s_str, "download": s_bool}, ["query"]),
+        spec("vectorize_file", "Растровое изображение → векторный SVG (vtracer: логотипы, рисунки)",
+             {"file_path": s_str, "color_precision": s_int, "filter_speckle": s_int,
+              "layer_difference": s_int, "mode": s_str}, ["file_path"]),
         spec("glm_think", "Глубокое размышление GLM (облако) — только для самых сложных вопросов",
              {"question": s_str, "system": s_str, "max_tokens": s_int}, ["question"]),
         spec("glm_vision", "Анализ картинки GLM-4.6V (облако) — если локальная VL не справила",
@@ -1368,6 +1391,8 @@ def _dispatch(name: str, args: dict) -> str:
             return obsidian_search(**args)
         if name == "obsidian_read":
             return obsidian_read(**args)
+        if name == "vectorize_file":
+            return vectorize_file(**args)
         if name == "habr_scan":
             return habr_scan(**args)
         if name == "habr_search":

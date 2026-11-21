@@ -15,7 +15,7 @@
 set -euo pipefail
 
 CFG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-AISTART="/home/rover/AiStart"
+AISTART="/home/rover/AI-Combine/AiStart"
 BACKUP="$CFG_DIR/backup"
 STAMP=$(date +%Y%m%d-%H%M%S)
 MCP_PY="$AISTART/mcp_server.py"
@@ -41,7 +41,7 @@ restart_mcp() {
     pid=$(cat "$MCP_PIDFILE" 2>/dev/null || true)
     [ -n "$pid" ] && kill "$pid" 2>/dev/null || true
     sleep 2
-    (cd "$AISTART" && nohup /home/rover/OpenWebUI-Local/.venv/bin/python3 mcp_server.py >> logs/mcp_server.log 2>&1 &
+    (cd "$AISTART" && nohup /home/rover/AI-Combine/OpenWebUI-Local/.venv/bin/python3 mcp_server.py >> logs/mcp_server.log 2>&1 &
      echo $! > "$MCP_PIDFILE")
     sleep 6
     local code
@@ -70,7 +70,7 @@ cmd_diff() {
     say "▸ Блок STT (stt.json):"
     say "    + проверка локальных весов ~/giga_speech/model (уже скачаны, ~450 МБ)"
     say "    + тест загрузки и транскрибации через stt_model.py (обход meta-device)"
-    if [ -f /home/rover/giga_speech/file_transcribe.py ]; then
+    if [ -f /home/rover/AI-Combine/giga_speech/file_transcribe.py ]; then
         say "    (скрипты ~/giga_speech уже есть — перезаписываться НЕ будут)"
     fi
     say ""
@@ -121,7 +121,7 @@ EOF
 }
 
 # ------------------------------------------------ apply stt
-STT_DIR="/home/rover/giga_speech"
+STT_DIR="/home/rover/AI-Combine/giga_speech"
 STT_MODEL_DIR="$STT_DIR/model"
 
 apply_stt() {
@@ -143,7 +143,7 @@ apply_stt() {
 import os, sys, tempfile, wave
 import numpy as np
 
-sys.path.insert(0, "/home/rover/giga_speech")
+sys.path.insert(0, "/home/rover/AI-Combine/giga_speech")
 import stt_model
 
 # 2 секунды тихого шума, 16 кГц моно

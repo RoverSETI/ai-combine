@@ -26,11 +26,11 @@ from pathlib import Path
 import requests
 from mcp.server.mcpserver import MCPServer
 
-BASE = Path(__file__).resolve().parent          # /home/rover/AiStart
+BASE = Path(__file__).resolve().parent          # /home/rover/AI-Combine/AiStart
 VAULT = Path("/run/media/rover/BACK/GoogleDrive/Obsidian")
 ROUTER = "http://127.0.0.1:8081/v1"
 EMBED = "http://127.0.0.1:8082/v1"
-TOOLS_PY = "/home/rover/OpenWebUI-Local/.venv/bin/python"      # photo_fix (torch/LaMa)
+TOOLS_PY = "/home/rover/AI-Combine/OpenWebUI-Local/.venv/bin/python"  # photo_fix (torch/LaMa)
 SCAN_PY = str(BASE / ".venv-tools" / "bin" / "python")          # habr/ask_kb (requests)
 ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 

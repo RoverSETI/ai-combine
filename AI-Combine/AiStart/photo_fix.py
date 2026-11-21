@@ -5,8 +5,8 @@ photo_fix.py — реставрация фотографий: обрезка, п
 шумоподавление, удаление трещин/царапин (ИИ-заливка LaMa на RTX 3060).
 
 Запуск (CLI):
-  /home/rover/OpenWebUI-Local/.venv/bin/python photo_fix.py фото.jpg --preset old
-  /home/rover/OpenWebUI-Local/.venv/bin/python photo_fix.py папка/ --preset modern
+  /home/rover/AI-Combine/OpenWebUI-Local/.venv/bin/python photo_fix.py фото.jpg --preset old
+  /home/rover/AI-Combine/OpenWebUI-Local/.venv/bin/python photo_fix.py папка/ --preset modern
 Флаги:
   --preset old|modern      базовый набор операций (по умолчанию old)
   --rotate N               поворот на N градусов (по часовой, любой угол)

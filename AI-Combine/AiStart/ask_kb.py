@@ -180,7 +180,7 @@ def main() -> int:
     index = load_index()
     if not index:
         print("📭 База знаний пуста. Сначала запустите сканер: habr_scan.py")
-        print("   (или проверьте, что комбайн запущен: /home/rover/AiStart/start_ai.sh)")
+        print("   (или проверьте, что комбайн запущен: /home/rover/AI-Combine/AiStart/start_ai.sh)")
         return 1
 
     hits = search_semantic(args.question, index, args.top)
@@ -191,7 +191,7 @@ def main() -> int:
         answer(args.question, hits, args.model, args.top)
     except Exception as e:
         print(f"\n❌ Ошибка запроса к модели: {e}")
-        print("   Проверьте, что комбайн запущен: /home/rover/AiStart/start_ai.sh")
+        print("   Проверьте, что комбайн запущен: /home/rover/AI-Combine/AiStart/start_ai.sh")
         return 1
     return 0
 

@@ -9,8 +9,8 @@
 import json
 from pathlib import Path
 
-CFG_PATH = "/home/rover/SwarmConfig/mcp_local.json"
-OUT = Path("/home/rover/AiStart/swarm_tools.py")
+CFG_PATH = "/home/rover/AI-Combine/SwarmConfig/mcp_local.json"
+OUT = Path("/home/rover/AI-Combine/AiStart/swarm_tools.py")
 
 L = []
 A = L.append
@@ -43,8 +43,8 @@ A("mcp = getattr(_main, 'mcp', None) or globals().get('_mcp_ref')")
 A("if mcp is None:")
 A("    raise RuntimeError('swarm_tools: не найден общий MCPServer (запускайте через mcp_server.py)')")
 A("")
-A("AISTART = Path('/home/rover/AiStart')")
-A("SWARM_CFG = Path('/home/rover/SwarmConfig')")
+A("AISTART = Path('/home/rover/AI-Combine/AiStart')")
+A("SWARM_CFG = Path('/home/rover/AI-Combine/SwarmConfig')")
 A('GLM_KEY_FILE = AISTART / "PolzaKey>Z.ai"')
 A('GLM_USAGE = SWARM_CFG / "state" / "glm_usage.json"')
 A('GLM_ENDPOINT = "https://api.polza.ai/v1/chat/completions"')
@@ -284,8 +284,8 @@ A("    except Exception as e:")
 A("        return '⛔ glm_review: ' + str(e)")
 A("")
 A("")
-A("GIGA_PY = '/home/rover/giga_speech/.venv/bin/python'")
-A("GIGA_DIR = '/home/rover/giga_speech'")
+A("GIGA_PY = '/home/rover/AI-Combine/giga_speech/.venv/bin/python'")
+A("GIGA_DIR = '/home/rover/AI-Combine/giga_speech'")
 A("GIGA_SCRIPT = GIGA_DIR + '/stt_model.py'")
 A("")
 A("")
@@ -472,8 +472,8 @@ A("# ---------- графические агенты (VL + рисование + G
 A("")
 A("VL_MODEL = 'nvidia-nemotron-12b-vision'")
 A("ROUTER_URL = 'http://127.0.0.1:8081/v1/chat/completions'")
-A("SD_CLI = '/home/rover/sd.cpp/build/bin/sd-cli'")
-A("SD_DIR = '/home/rover/AI-Models/flux'")
+A("SD_CLI = '/home/rover/AI-Combine/sd.cpp/build/bin/sd-cli'")
+A("SD_DIR = '/home/rover/AI-Combine/AI-Models/flux'")
 A("GLM_VISION_MODEL = 'z-ai/glm-4.6v'")
 A("IMG_OUT_DIR = '/home/rover/Pictures/swarm'")
 A("")

@@ -124,7 +124,7 @@ def check_services() -> bool:
         requests.get(f"{CONFIG['router_api']}/models", timeout=5, headers=UA).raise_for_status()
     except Exception as e:
         log(f"❌ Роутер недоступен ({e})")
-        log("   Запустите комбайн: /home/rover/AiStart/start_ai.sh")
+        log("   Запустите комбайн: /home/rover/AI-Combine/AiStart/start_ai.sh")
         ok = False
     try:
         requests.get(f"{CONFIG['embed_api']}/models", timeout=5, headers=UA).raise_for_status()

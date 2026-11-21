@@ -54,7 +54,7 @@ cmd_route() {
     [ -n "$task" ] || die "укажите задачу: agent_cli.sh route \"задача\""
     "$PY" - "$task" <<'EOF'
 import json, sys
-d = json.load(open('/home/rover/AiStart/agents.json'))
+d = json.load(open('/home/rover/AI-Combine/AiStart/agents.json'))
 low = sys.argv[1].lower()
 for rule in d['routing']['rules']:
     hit = [kw for kw in rule['keywords'] if kw and kw.lower() in low]
@@ -71,7 +71,7 @@ cmd_status() {
     "$PY" - <<'EOF'
 import json
 d = json.load(open('/tmp/_agent_models.json'))
-cfg = json.load(open('/home/rover/AiStart/agents.json'))
+cfg = json.load(open('/home/rover/AI-Combine/AiStart/agents.json'))
 by_id = {m['id']: m for m in d['data']}
 print(f"{'Роль':26} {'Модель':30} VRAM")
 print('-' * 70)

@@ -21,7 +21,7 @@ from pathlib import Path
 
 MODEL_DIR = Path(__file__).resolve().parent / "model"
 ALLOWED_EXT = {".wav", ".mp3", ".ogg", ".m4a", ".flac", ".opus", ".webm"}
-_HF_TOKEN_FILE = Path("/home/rover/AiStart/HfToken")
+_HF_TOKEN_FILE = Path("/home/rover/AI-Combine/AiStart/HfToken")
 _MODEL = None
 _DIAR_PIPELINE = None
 

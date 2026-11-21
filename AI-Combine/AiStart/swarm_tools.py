@@ -27,8 +27,8 @@ mcp = getattr(_main, 'mcp', None) or globals().get('_mcp_ref')
 if mcp is None:
     raise RuntimeError('swarm_tools: не найден общий MCPServer (запускайте через mcp_server.py)')
 
-AISTART = Path('/home/rover/AiStart')
-SWARM_CFG = Path('/home/rover/SwarmConfig')
+AISTART = Path('/home/rover/AI-Combine/AiStart')
+SWARM_CFG = Path('/home/rover/AI-Combine/SwarmConfig')
 GLM_KEY_FILE = AISTART / "PolzaKey>Z.ai"
 GLM_USAGE = SWARM_CFG / "state" / "glm_usage.json"
 GLM_ENDPOINT = "https://api.polza.ai/v1/chat/completions"
@@ -268,8 +268,8 @@ def glm_review(task: str, draft: str, strict: bool = True) -> str:
         return '⛔ glm_review: ' + str(e)
 
 
-GIGA_PY = '/home/rover/giga_speech/.venv/bin/python'
-GIGA_DIR = '/home/rover/giga_speech'
+GIGA_PY = '/home/rover/AI-Combine/giga_speech/.venv/bin/python'
+GIGA_DIR = '/home/rover/AI-Combine/giga_speech'
 GIGA_SCRIPT = GIGA_DIR + '/stt_model.py'
 
 
@@ -456,8 +456,8 @@ def stt_listen(seconds: int = 10, device: int = -1) -> str:
 
 VL_MODEL = 'nvidia-nemotron-12b-vision'
 ROUTER_URL = 'http://127.0.0.1:8081/v1/chat/completions'
-SD_CLI = '/home/rover/sd.cpp/build/bin/sd-cli'
-SD_DIR = '/home/rover/AI-Models/flux'
+SD_CLI = '/home/rover/AI-Combine/sd.cpp/build/bin/sd-cli'
+SD_DIR = '/home/rover/AI-Combine/AI-Models/flux'
 GLM_VISION_MODEL = 'z-ai/glm-4.6v'
 IMG_OUT_DIR = '/home/rover/Pictures/swarm'
 

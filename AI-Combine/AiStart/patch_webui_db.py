@@ -26,7 +26,7 @@ import sqlite3
 import sys
 from pathlib import Path
 
-DEFAULT_DB = ("/home/rover/OpenWebUI-Local/.venv/lib/python3.11/site-packages"
+DEFAULT_DB = ("/home/rover/AI-Combine/OpenWebUI-Local/.venv/lib/python3.11/site-packages"
               "/open_webui/data/webui.db")
 DEFAULT_START_AI = "/home/rover/AI-Combine/AiStart/start_ai.sh"
 DEFAULT_SPEC = "/home/rover/AI-Combine/AiStart/webui_asserts.json"

@@ -26,7 +26,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-BASE = Path(__file__).resolve().parent          # /home/rover/AiStart
+BASE = Path(__file__).resolve().parent          # /home/rover/AI-Combine/AiStart
 RUN_DIR = BASE / "run"
 LOG_DIR = BASE / "logs"
 STATE_FILE = BASE / "habr_fetch_jobs.json"

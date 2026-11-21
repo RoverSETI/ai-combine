@@ -18,11 +18,11 @@
 # ============================================================
 
 # ------------------------- настройки -------------------------
-ROUTER_BIN="/home/rover/llama/llama-server"
-MODELS_INI="/home/rover/AiStart/models.ini"
-EMBED_MODEL="/home/rover/AI-Models/gte-modernbert-base-q8_0.gguf"
-WEBUI_DIR="/home/rover/OpenWebUI-Local"
-CUDA12_VENV="/home/rover/AiStart/.venv-cuda12"
+ROUTER_BIN="/home/rover/AI-Combine/llama/llama-server"
+MODELS_INI="/home/rover/AI-Combine/AiStart/models.ini"
+EMBED_MODEL="/home/rover/AI-Combine/AI-Models/gte-modernbert-base-q8_0.gguf"
+WEBUI_DIR="/home/rover/AI-Combine/OpenWebUI-Local"
+CUDA12_VENV="/home/rover/AI-Combine/AiStart/.venv-cuda12"
 
 ROUTER_BIND="127.0.0.1"; ROUTER_PORT=8081
 EMBED_BIND="127.0.0.1";  EMBED_PORT=8082
@@ -84,7 +84,7 @@ wait_mcp() {
 # Приоритет: ~/llama-cuda13 (собрана под текущую системную CUDA, не ломается
 # от обновлений cuda). Фолбэк: ~/llama (старая, собрана под CUDA 12 — ей нужны
 # libcudart.so.12/libcublas.so.12 из .venv-cuda12, иначе молча работает на CPU).
-LLAMA13_DIR="/home/rover/llama-cuda13"
+LLAMA13_DIR="/home/rover/AI-Combine/llama-cuda13"
 if [ -x "$LLAMA13_DIR/llama-server" ]; then
     ROUTER_BIN="$LLAMA13_DIR/llama-server"
     LLAMA_LIB_DIR="$LLAMA13_DIR"

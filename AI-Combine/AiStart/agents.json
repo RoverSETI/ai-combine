@@ -4,17 +4,17 @@
   "timeout_chat": 600,
   "roles": {
     "fast": {
-      "model": "qwen2.5-coder-0.5b",
-      "title": "Быстрый (0.5b)",
+      "model": "qwen3-4b-instruct-2507",
+      "title": "Быстрый (qwen3-4b)",
       "purpose": "Мелкие одноразовые вопросы, прогрев VRAM, автодополнение. Не умеет инструменты.",
       "max_tokens": 400,
       "temperature": 0.4,
       "tools": false
     },
     "medium": {
-      "model": "qwen2.5-coder-7b",
-      "title": "Средний (qwen2.5-7b)",
-      "purpose": "Рутинные задачи: тексты, переводы, пояснения, простые bash-вопросы. Связный текст; tools нет (квант), сложное — на hard.",
+      "model": "qwen3-4b-instruct-2507",
+      "title": "Средний (qwen3-4b)",
+      "purpose": "Рутинные задачи: тексты, переводы, пояснения. Быстрая 4b после чистки роя 14.11.",
       "max_tokens": 1200,
       "temperature": 0.4,
       "tools": false
@@ -28,12 +28,12 @@
       "tools": true
     },
     "coder": {
-      "model": "qwen2.5-coder-7b",
-      "title": "Кодер (qwen2.5-coder-7b)",
-      "purpose": "Генерация и разбор кода без инструментов (квант не умеет tool-calling).",
+      "model": "qwen3.5-9b-instruct",
+      "title": "Кодер (qwen3.5-9b)",
+      "purpose": "Генерация и разбор кода; перекрыта hard-ролью 9b (решение 14.11: coder-модели удалены).",
       "max_tokens": 2000,
       "temperature": 0.2,
-      "tools": false
+      "tools": true
     },
     "vision": {
       "model": "nvidia-nemotron-12b-vision",

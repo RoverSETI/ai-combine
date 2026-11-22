@@ -546,7 +546,15 @@ def image_generate(prompt: str, output: str = '', width: int = 512, height: int 
             unloaded_note = ' (авто-выгружено моделей роутера: ' + str(n_un) + ')'
         except Exception:
             pass
-        time.sleep(5)  # выгрузка асинхронная — даём VRAM освободиться
+        for _i in range(10):  # выгрузка асинхронная: роутер force-kill'ит инстанс с таймаутом,
+            time.sleep(3)      # драйвер отдаёт VRAM позже — поллим до 30 с (фикс race 22.11)
+            try:
+                fr = subprocess.run(['nvidia-smi', '--query-gpu=memory.free', '--format=csv,noheader,nounits'],
+                                    capture_output=True, text=True, timeout=10)
+                if int(fr.stdout.strip().splitlines()[0]) >= 5000:
+                    break
+            except Exception:
+                break
     cmd = [SD_CLI,
         '--diffusion-model', SD_DIR + '/flux1-schnell-Q4_K_S.gguf',
         '--clip_l', SD_DIR + '/clip_l.safetensors',

@@ -1397,6 +1397,9 @@ def _tool_specs() -> list:
              {"query": s_str, "limit": s_int}, ["query"]),
         spec("web_fetch", "Скачать страницу по URL и вернуть чистый текст",
              {"url": s_str, "max_chars": s_int}, ["url"]),
+        spec("system_health", "Здоровье стека одной командой: порты сервисов, "
+             "VRAM, хвосты логов (роутер/WebUI/MCP/ComfyUI). GPU не трогает",
+             {"lines": s_int}),
         spec("image_describe", "Распознать картинку локальной VL-моделью (текст, сцены, объекты)",
              {"path": s_str, "question": s_str}, ["path"]),
         spec("image_generate", "НАРИСОВАТЬ картинку локально (FLUX.1-schnell через sd.cpp; при занятой VRAM сам выгружает модели роутера). До 1024×1024",
@@ -1499,6 +1502,62 @@ def _dispatch(name: str, args: dict) -> str:
         return f"неизвестная функция {name}"
     except Exception as e:
         return f"ошибка вызова {name}: {e}"
+
+
+@mcp.tool()
+def system_health(lines: int = 6) -> str:
+    """Одна команда — здоровье всего ИИ-комбайна: порты сервисов, VRAM,
+    хвосты логов (роутер, WebUI, MCP-мост, ComfyUI). Безопасно вызывать
+    в любой момент, GPU не трогает.
+
+    Args:
+        lines: сколько последних строк каждого лога показать (1-30)
+    """
+    import socket as _socket
+    from pathlib import Path as _Path
+
+    lines = max(1, min(int(lines), 30))
+    out = []
+
+    # 1. Порты сервисов (socket, без внешних процессов)
+    ports = [
+        ("WebUI", 8080), ("Роутер LLM", 8081), ("Эмбеддинги", 8082),
+        ("MCP-мост", 8089), ("Maigret", 8095), ("GIMP", 8135),
+        ("Inkscape", 8136), ("ComfyUI", 8188),
+    ]
+    port_status = []
+    for label, port in ports:
+        with _socket.socket(_socket.AF_INET, _socket.SOCK_STREAM) as s:
+            s.settimeout(1.0)
+            ok = s.connect_ex(("127.0.0.1", port)) == 0
+        port_status.append(f"{label}:{port} {'✅' if ok else '❌'}")
+    out.append("ПОРТЫ: " + " | ".join(port_status))
+
+    # 2. VRAM через ComfyUI /system_stats (без nvidia-smi)
+    try:
+        st = requests.get("http://127.0.0.1:8188/system_stats", timeout=5).json()
+        dev = st["devices"][0]
+        used = dev["vram_total"] - dev["vram_free"]
+        out.append(f"VRAM: занято {used / 2**30:.1f} ГБ из "
+                   f"{dev['vram_total'] / 2**30:.1f} ГБ")
+    except Exception:
+        out.append("VRAM: ComfyUI не отвечает — n/a")
+
+    # 3. Хвосты логов (последние строки, лог-каталог AiStart)
+    log_dir = _Path(__file__).resolve().parent / "logs"
+    for name in ("llama_router.log", "open_webui.log",
+                 "mcp_server.log", "comfyui.log"):
+        p = log_dir / name
+        if not p.exists():
+            out.append(f"LOG {name}: (нет файла)")
+            continue
+        try:
+            tail = p.read_text(errors="replace").splitlines()[-lines:]
+            body = "\n".join(tail[-lines:])
+            out.append(f"LOG {name} (последние {lines}):\n{body}")
+        except Exception as e:
+            out.append(f"LOG {name}: ошибка чтения {e}")
+    return "\n\n".join(out)
 
 
 @mcp.tool()

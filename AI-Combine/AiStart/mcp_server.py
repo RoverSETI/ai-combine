@@ -920,7 +920,7 @@ def _memory_preflight(vram_needed_gb: float, ram_needed_gb: float = 0.0) -> str:
         if 0 <= ram < ram_needed_gb:
             notes.append(f"⚠️ RAM мало: свободно {ram:.1f} ГБ, нужно ~{ram_needed_gb:.1f} — "
                          "выгрузи тяжёлые LLM из RAM (./ai_mem.sh free) или возьми меньший клип/разрешение")
-    return ("; ".join(notes) + " ") if notes else ""
+    return (" — " + "; ".join(notes) + " ") if notes else ""
 
 
 def _bopbtl_graph(image_name: str, mode: str = "scratch",

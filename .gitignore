@@ -97,6 +97,12 @@
 /AI-Combine/giga_speech/*
 !/AI-Combine/giga_speech/*.py
 
+# tools: только утилиты-скрипты (maigret-reports и прочие данные — вне Git)
+!/AI-Combine/tools/
+/AI-Combine/tools/*
+!/AI-Combine/tools/photo_enhance.py
+
+
 # mcp-gimp: мост целиком (6 МБ, конфиги/скрипты)
 !/AI-Combine/mcp-gimp/
 /AI-Combine/mcp-gimp/*

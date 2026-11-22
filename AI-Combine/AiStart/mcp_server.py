@@ -52,6 +52,13 @@ DENY_PATTERNS = [
     r"shutil\.rmtree",
     r"\bdd\b[^|;]*of=/dev/(sd|nvme|hd|vd|mmcblk)",
     r"\bmv\s+[^;|>]*\s+/dev/null\s*$",
+    # --- 22.11: протокол разрешений — системные периметры (Tier 3) ---
+    r"\bsetcap\b",                          # capabilities (урок Wireshark/dumpcap)
+    r"\bkillall\b",                          # масс-убийство процессов (kill по точному PID — разрешён)
+    r"\bsystemctl\s+(start|stop|restart|enable|disable|mask)\b",
+    r"\biptables\b", r"\bnft\b",             # сетевой периметр (фаервол)
+    r"\bmount\s+/dev", r"\bumount\s+/dev",   # монтирование устройств
+    r"\buseradd\b", r"\bgroupadd\b", r"\bgroupdel\b", r"\bpasswd\b",
 ]
 
 

@@ -276,6 +276,32 @@ else
     log "⚠️  mcp-proxy или maigret не найдены — OSINT-инструменты недоступны"
 fi
 
+# ---------------- 5.8. Wireshark-MCP мост (анализ pcap, :8096/mcp) ----------------
+# Строгий режим: профиль analysis — БЕЗ live-capture и БЕЗ записи файлов.
+# Чтение pcap разрешено только из wireshark-captures (WIRESHARK_MCP_ALLOWED_DIRS).
+WSMCP_BIN="/home/rover/AI-Combine/wireshark-mcp/.venv/bin/wireshark-mcp"
+WSMCP_CAPTURES="/home/rover/AI-Combine/wireshark-captures"
+if [ -x "$WSMCP_BIN" ] && [ -x "/usr/sbin/tshark" ]; then
+    log "🦈 Запуск Wireshark-MCP моста (:8096/mcp, профиль analysis — без захвата)..."
+    : > "$LOG_DIR/wireshark_mcp_bridge.log"
+    WIRESHARK_MCP_ALLOWED_DIRS="$WSMCP_CAPTURES" \
+    WIRESHARK_MCP_TSHARK_PATH="/usr/sbin/tshark" \
+    WIRESHARK_MCP_CAPINFOS_PATH="/usr/sbin/capinfos" \
+    nohup "$WSMCP_BIN" serve \
+        --transport streamable-http --host 127.0.0.1 --port 8096 \
+        --profile analysis \
+        > "$LOG_DIR/wireshark_mcp_bridge.log" 2>&1 < /dev/null &
+    WSMCP_PID=$!
+    echo "$WSMCP_PID" > "$RUN_DIR/wireshark_mcp_bridge.pid"
+    wait_mcp "http://127.0.0.1:8096/mcp" 30 "$WSMCP_PID"
+    case $? in
+        0) log "✅ Wireshark-MCP мост готов (PID $WSMCP_PID, capture-тулов нет)" ;;
+        *) report_fail "$LOG_DIR/wireshark_mcp_bridge.log"; log "⚠️ продолжаю без Wireshark-инструментов" ;;
+    esac
+else
+    log "⚠️  wireshark-mcp или tshark не найдены — Wireshark-инструменты недоступны"
+fi
+
 # ---------------- 6. прогрев конвейера ----------------
 if [ -n "$WARMUP_MODEL" ]; then
     log "🔥 Прогрев: $WARMUP_MODEL (первая загрузка модели в VRAM)..."

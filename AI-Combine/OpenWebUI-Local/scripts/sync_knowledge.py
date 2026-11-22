@@ -21,6 +21,7 @@ import glob
 import hashlib
 import json
 import os
+import re
 import sys
 import urllib.error
 import urllib.parse
@@ -35,6 +36,17 @@ ALLOWED_PATHS = (
 KB_ID = "dfe4a423-90f1-4db7-909c-206d599b8f58"
 VAULT = "/run/media/rover/BACK/GoogleDrive/Obsidian"
 TOKEN_PATH = "/tmp/webui_jwt.txt"  # только чтение
+
+# Замена inline base64-картинок: их гигантские чанки дают эмбеддинги-«магниты»,
+# забивающие векторный поиск (диагноз 22.11: топ retrieval — base64 вместо текста).
+# Vault-оригиналы не трогаются — чистится только копия, уходящая в Знания.
+B64_IMG = re.compile(rb"data:image/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/=]{200,}")
+B64_REPL = "[изображение — base64 вырезан при индексации]".encode("utf-8")
+
+
+def strip_base64(content: bytes) -> bytes:
+    """Убрать inline base64-картинки из байтов заметки (для индексации)."""
+    return B64_IMG.sub(B64_REPL, content)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -94,7 +106,7 @@ def vault_manifest():
             continue
         rel = os.path.relpath(p, VAULT).replace(os.sep, "/")
         with open(p, "rb") as fh:
-            content = fh.read()
+            content = strip_base64(fh.read())
         if not content.strip():
             continue  # пустые не индексируем
         out.append(
@@ -123,9 +135,9 @@ def diff(manifest):
 
 
 def upload_file(path):
-    """Загрузить локальный файл, вернуть его file_id."""
+    """Загрузить локальный файл (base64 вырезается), вернуть его file_id."""
     with open(path, "rb") as fh:
-        content = fh.read()
+        content = strip_base64(fh.read())
     resp = api(
         "POST",
         "/api/v1/files/?process=true&process_in_background=false",

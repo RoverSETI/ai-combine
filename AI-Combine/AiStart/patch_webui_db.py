@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""patch_webui_db.py — страж конфигурации Open WebUI перед стартом (21.11).
+"""patch_webui_db.py — страж конфигурации Open WebUI перед стартом (21.11, расширен 26.11).
 
-Схема конфига WebUI 0.13.x: настройки держатся env-переменными из start_ai.sh
-(WEBUI_AUTH, ENABLE_*_GENERATION, OPENAI_API_*). Таблицы config в webui.db нет;
-если она ПОЯВИЛАСЬ (апгрейд/правка через админку) — она перекроет env. Страж
-ловит это до старта сервиса.
+Схема конфига WebUI 0.13.3+: настройки, изменённые через админку, пишутся в
+persistent-таблицу config в webui.db и ПЕРЕКРЫВАЮТ env из start_ai.sh.
+Таблицы нет = конфиг env-ный (норма). Если таблица есть, страж сам сверяет
+контрольные ключи со спекой webui_asserts.json (db_config_keys):
+совпадение → выход 0, расхождение → выход 2 (правка через админку).
 
-Что делает (только stdlib, без SQL-литералов):
+Что делает (только stdlib):
   1) PRAGMA quick_check — целостность webui.db;
-  2) PRAGMA table_info(config) — появилась ли persistent-таблица config:
-       - нет  → конфиг env-ный (норма), дальше только env-сверка;
-       - есть → ⚠️ отчёт с ключами и инструкцией (правка через админку WebUI);
+  2) persistent-конфиг: сверка ключей db_config_keys со спекой (поштучно);
   3) env-сверка start_ai.sh со спекой webui_asserts.json.
 
 Запуск:  python3 patch_webui_db.py [--apply] [--db PATH] [--start-ai PATH] [--spec PATH]
-Выход:   0 — всё в порядке; 1 — БД повреждена/проблемы в env; 2 — есть таблица config (нужна ручная починка через админку).
+Выход:   0 — всё в порядке; 1 — БД повреждена/проблемы в env/сбой сверки;
+         2 — persistent-конфиг разъехался со спекой.
 """
 from __future__ import annotations
 
@@ -50,9 +50,58 @@ def check_db_integrity(db_path: Path) -> tuple[bool, str]:
         return False, str(e)
 
 
-def config_table_columns(con: sqlite3.Connection):
+def config_table_columns(con: sqlite3.Connection) -> list:
     """Список колонок таблицы config (пусто → таблицы нет). PRAGMA, без SQL."""
     return con.execute("PRAGMA table_info(config)").fetchall()
+
+
+def check_db_config(con: sqlite3.Connection, spec: dict) -> tuple[int, list[str]]:
+    """Сверка persistent-таблицы config со спекой (db_config_keys).
+
+    Возвращает (число расхождений/сбоев, список строк-подробностей).
+    Чтение БД — поштучно: на каждый ключ параметризованный запрос
+    «key = ?» с биндингом ключа из спеки (без конкатенаций).
+    """
+    report: list[str] = []
+    mismatches = 0
+    expected_keys = spec.get("db_config_keys", [])
+    if not expected_keys:
+        return 0, ["⚪ в спеке нет db_config_keys — сверять нечего"]
+
+    single_select = "SELECT value FROM config WHERE key = ?"
+    actual: dict[str, str | None] = {}
+    missing: set[str] = set()
+    for item in expected_keys:
+        key = str(item.get("key"))
+        try:
+            row = con.execute(single_select, (key,)).fetchone()
+        except Exception as e:
+            report.append("⛔ config[" + key + "]: запрос не удался: " + str(e))
+            mismatches += 1
+            continue
+        if row is None:
+            missing.add(key)
+        else:
+            actual[key] = row[0]
+
+    for item in expected_keys:
+        key = str(item.get("key"))
+        expected = item.get("value")
+        if key in missing:
+            report.append("🟡 config[" + key + "]: ОТСУТСТВУЕТ в БД — ожидалось " + repr(expected))
+            mismatches += 1
+            continue
+        raw = actual.get(key)
+        try:
+            actual_val = json.loads(raw) if raw is not None else None
+        except (ValueError, TypeError):
+            actual_val = raw
+        if actual_val == expected or str(actual_val) == str(expected):
+            report.append("🟢 config[" + key + "] = " + repr(actual_val))
+        else:
+            report.append("🟡 config[" + key + "] = " + repr(actual_val) + " — ожидалось " + repr(expected))
+            mismatches += 1
+    return mismatches, report
 
 
 def check_env(start_ai: Path, spec: dict) -> list[str]:
@@ -95,36 +144,34 @@ def main() -> int:
         print("   → БД повреждена; восстановление из webui.db.bak-* вручную")
         return 1
 
+    spec = load_spec(Path(args.spec).expanduser())
+
     con = sqlite3.connect(str(db_path))
     try:
         cols = config_table_columns(con)
+        if cols:
+            print("ℹ️ persistent-таблица config есть (0.13.3+) — сверяю со спекой (db_config_keys):")
+            mismatches, db_report = check_db_config(con, spec)
+            for line in db_report:
+                print("  " + line)
+            db_broken = mismatches > 0
+        else:
+            print("⚪ таблица config отсутствует — конфиг env-ный (start_ai.sh), БД-сверка не требуется")
+            mismatches = 0
+            db_broken = False
     finally:
         con.close()
 
-    if cols:
-        print("⚠️ В webui.db появилась persistent-таблица config — она ПЕРЕКРЫВАЕТ env start_ai.sh.")
-        print("   Проверь и приведи ключи к контрольным значениям через админку WebUI")
-        print("   (или сверяй вручную со спекой webui_asserts.json, ключ db_config_keys):")
-        for item in json.loads(Path(args.spec).expanduser().read_text(encoding="utf-8")).get("db_config_keys", []):
-            print("     - " + str(item.get("key")) + " = " + repr(item.get("value")))
-        print("   Отчёт сохранён: /tmp/webui_config_report.txt")
-        report_path = Path("/tmp/webui_config_report.txt")
-        report_path.write_text(
-            "persistent-таблица config в " + str(db_path) + "\n"
-            "колонки: " + str([c[1] for c in cols]) + "\n"
-            "контрольные ключи: webui_asserts.json → db_config_keys\n",
-            encoding="utf-8")
-        return 2
-
-    print("⚪ таблица config отсутствует — конфиг env-ный (start_ai.sh), БД-сверка не требуется")
-
     problems = 0
-    spec = load_spec(Path(args.spec).expanduser())
     for line in check_env(Path(args.start_ai).expanduser(), spec):
         print("  " + line)
         if line.startswith(("⛔", "🟡")):
             problems += 1
 
+    if db_broken:
+        print("== Итог: persistent-конфиг разъехался со спекой (" + str(mismatches) +
+              ") — правка через админку WebUI, контрольные значения в webui_asserts.json")
+        return 2
     if problems:
         print("== Итог: в start_ai.sh " + str(problems) + " отклонение(й) — править руками, файл в git")
         return 1

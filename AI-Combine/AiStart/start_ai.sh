@@ -349,9 +349,9 @@ fi
 "$BASE_DIR/.venv-tools/bin/python" "$BASE_DIR/patch_webui_db.py" --apply
 guard_rc=$?
 if [ "$guard_rc" -eq 0 ]; then
-    log "🛡 Страж webui: всё на месте"
+    log "🛡 Страж webui: всё на месте (env + persistent-конфиг сверены)"
 elif [ "$guard_rc" -eq 2 ]; then
-    log "🛡 Страж webui: найдена persistent-таблица config — сверка по webui_asserts.json (см. /tmp/webui_config_report.txt)"
+    log "🛡 Страж webui: persistent-конфиг РАСХОДИТСЯ со спекой webui_asserts.json — правка через админку; детали в логе старта и /tmp/webui_config_report.txt"
 else
     log "⚠️ Страж webui: отклонения в env/БД — детали выше; WebUI всё равно запускается"
 fi

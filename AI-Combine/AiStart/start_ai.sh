@@ -302,6 +302,31 @@ else
     log "⚠️  wireshark-mcp или tshark не найдены — Wireshark-инструменты недоступны"
 fi
 
+# ---------------- 5.9. polza-cheap-proxy (дешёвый провайдер polza.ai, :8084) ----------------
+# Инжект provider.sort=price в запросы к polza.ai; ключ из ~/AiStart/PolzaKey.
+# Замер 26.11: один и тот же запрос 0.0054₽ без sort → 0.0009₽ с sort=price.
+POLZA_PROXY="/home/rover/AI-Combine/SwarmConfig/polza-cheap-proxy.js"
+POLZA_KEY="/home/rover/AiStart/PolzaKey"
+if [ -f "$POLZA_PROXY" ] && [ -s "$POLZA_KEY" ]; then
+    if curl -sf -m 2 "http://127.0.0.1:8084/api/v1/models" > /dev/null 2>&1; then
+        log "✅ polza-cheap-proxy уже работает (:8084)"
+    else
+        log "💰 Запуск polza-cheap-proxy (:8084 → polza.ai, sort=price)..."
+        nohup node "$POLZA_PROXY" \
+            > "$LOG_DIR/polza_proxy.log" 2>&1 < /dev/null &
+        POLZA_PID=$!
+        echo "$POLZA_PID" > "$RUN_DIR/polza_proxy.pid"
+        sleep 1
+        if curl -sf -m 5 "http://127.0.0.1:8084/api/v1/models" > /dev/null 2>&1; then
+            log "✅ polza-cheap-proxy готов (PID $POLZA_PID)"
+        else
+            log "⚠️ polza-cheap-proxy не ответил — детали в $LOG_DIR/polza_proxy.log"
+        fi
+    fi
+else
+    log "⚠️  polza-cheap-proxy или PolzaKey не найдены — polza уйдёт напрямую (дороже)"
+fi
+
 # ---------------- 6. прогрев конвейера ----------------
 if [ -n "$WARMUP_MODEL" ]; then
     log "🔥 Прогрев: $WARMUP_MODEL (первая загрузка модели в VRAM)..."
